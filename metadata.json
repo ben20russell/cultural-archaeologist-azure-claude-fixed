@@ -1,0 +1,5 @@
+{
+  "name": "Cultural Archeologist",
+  "description": "Generates a cultural matrix for a given audience or brand using Gemini.",
+  "requestFramePermissions": []
+}
