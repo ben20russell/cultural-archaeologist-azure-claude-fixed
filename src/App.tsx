@@ -1805,7 +1805,13 @@ export default function App() {
 }
 
 function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], onDeepDive }: { title: string; subtext: string; items: MatrixItem[]; delay: number; highlightedInsights?: string[]; onDeepDive?: (item: MatrixItem) => void }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const INITIAL_SHOW = 3;
+  
   if (!items || items.length === 0) return null;
+  
+  const visibleItems = isExpanded ? items : items.slice(0, INITIAL_SHOW);
+  const hasMoreItems = items.length > INITIAL_SHOW;
   
   return (
     <motion.div
@@ -1817,51 +1823,78 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
       <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wider mb-1">{title}</h3>
       <p className="text-xs text-zinc-500 mb-4">{subtext}</p>
       <ul className="space-y-3">
-        {items.map((item, index) => {
-          const isHighlighted = highlightedInsights.includes(item.text);
-          return (
-            <li 
-              key={index} 
-              className={`text-sm leading-relaxed flex items-start p-3 rounded-xl transition-all duration-300 group relative ${
-                isHighlighted
-                  ? 'ring-2 ring-indigo-500 bg-indigo-50 shadow-md transform scale-[1.02] z-10 text-indigo-950'
-                  : item.isHighlyUnique 
-                    ? 'bg-indigo-50/50 border border-indigo-100/50 text-indigo-950' 
-                    : item.isFromDocument
-                      ? 'bg-emerald-50/30 border border-emerald-100/30 text-emerald-950'
-                      : 'text-zinc-600 hover:bg-zinc-50'
-              }`}
-            >
-              <span className="mr-3 mt-0.5 shrink-0 flex items-center gap-1.5">
-                {item.isHighlyUnique && <Sparkles className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-indigo-500'}`} />}
-                {item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
-                {!item.isHighlyUnique && !item.isFromDocument && <span className={isHighlighted ? 'text-indigo-600' : 'text-zinc-300'}>•</span>}
-              </span>
-              <span className="flex-1 pr-8">
-                {item.text}
-                {item.sourceType && (
-                  <span className="inline-block ml-2 px-1.5 py-0.5 bg-zinc-100 text-zinc-500 text-[10px] uppercase tracking-wider font-semibold rounded border border-zinc-200 align-middle">
-                    {item.sourceType}
-                  </span>
+        <AnimatePresence>
+          {visibleItems.map((item, index) => {
+            const isHighlighted = highlightedInsights.includes(item.text);
+            return (
+              <motion.li
+                key={index}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`text-sm leading-relaxed flex items-start p-3 rounded-xl transition-all duration-300 group relative ${
+                  isHighlighted
+                    ? 'ring-2 ring-indigo-500 bg-indigo-50 shadow-md transform scale-[1.02] z-10 text-indigo-950'
+                    : item.isHighlyUnique 
+                      ? 'bg-indigo-50/50 border border-indigo-100/50 text-indigo-950' 
+                      : item.isFromDocument
+                        ? 'bg-emerald-50/30 border border-emerald-100/30 text-emerald-950'
+                        : 'text-zinc-600 hover:bg-zinc-50'
+                }`}
+              >
+                <span className="mr-3 mt-0.5 shrink-0 flex items-center gap-1.5">
+                  {item.isHighlyUnique && <Sparkles className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-indigo-500'}`} />}
+                  {item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
+                  {!item.isHighlyUnique && !item.isFromDocument && <span className={isHighlighted ? 'text-indigo-600' : 'text-zinc-300'}>•</span>}
+                </span>
+                <span className="flex-1 pr-8">
+                  {item.text}
+                  {item.sourceType && (
+                    <span className="inline-block ml-2 px-1.5 py-0.5 bg-zinc-100 text-zinc-500 text-[10px] uppercase tracking-wider font-semibold rounded border border-zinc-200 align-middle">
+                      {item.sourceType}
+                    </span>
+                  )}
+                </span>
+                {onDeepDive && (
+                  <button
+                    onClick={() => onDeepDive(item)}
+                    className={`absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all no-print ${
+                      item.deepDive 
+                        ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 opacity-100' 
+                        : 'text-zinc-400 hover:text-indigo-600 hover:bg-indigo-100'
+                    }`}
+                    title={item.deepDive ? "View Deep Dive" : "Generate Deep Dive"}
+                  >
+                    {item.deepDive ? <Check className="w-4 h-4" /> : <Target className="w-4 h-4" />}
+                  </button>
                 )}
-              </span>
-              {onDeepDive && (
-                <button
-                  onClick={() => onDeepDive(item)}
-                  className={`absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all no-print ${
-                    item.deepDive 
-                      ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 opacity-100' 
-                      : 'text-zinc-400 hover:text-indigo-600 hover:bg-indigo-100'
-                  }`}
-                  title={item.deepDive ? "View Deep Dive" : "Generate Deep Dive"}
-                >
-                  {item.deepDive ? <Check className="w-4 h-4" /> : <Target className="w-4 h-4" />}
-                </button>
-              )}
-            </li>
-          );
-        })}
+              </motion.li>
+            );
+          })}
+        </AnimatePresence>
       </ul>
+      
+      {hasMoreItems && (
+        <motion.button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors duration-200"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <span>
+            {isExpanded 
+              ? `Show less (${INITIAL_SHOW}/${items.length})` 
+              : `Show all ${items.length} items`}
+          </span>
+          <motion.div
+            animate={{ rotate: isExpanded ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <ChevronDown className="w-4 h-4" />
+          </motion.div>
+        </motion.button>
+      )}
     </motion.div>
   );
 }
