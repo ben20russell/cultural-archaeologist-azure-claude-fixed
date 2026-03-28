@@ -1,18 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  size: number;
-  hue: number;
-  opacity: number;
-  life: number;
-  originalX: number;
-  originalY: number;
-}
-
 export function SplashGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -24,7 +11,6 @@ export function SplashGrid() {
 
     let animationFrameId: number;
     let time = 0;
-    const particles: Particle[] = [];
 
     const resize = () => {
       canvas.width = window.innerWidth;
@@ -33,109 +19,90 @@ export function SplashGrid() {
     window.addEventListener('resize', resize);
     resize();
 
-    // Create particles distributed across screen
-    const createParticles = () => {
-      const hues = [230, 190, 290, 40, 60]; // Indigo, cyan, fuchsia, orange, red
-      const count = 120;
+    const drawPillar = (x: number, y: number, z: number, size: number, gridSize: number) => {
+      const tileW = size * 2;
+      const tileH = size;
       
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2;
-        const distance = Math.random() * 300 + 100;
-        const x = canvas.width / 2 + Math.cos(angle) * distance;
-        const y = canvas.height / 2 + Math.sin(angle) * distance;
-        
-        particles.push({
-          x: x,
-          y: y,
-          originalX: x,
-          originalY: y,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2,
-          size: Math.random() * 30 + 15,
-          hue: hues[Math.floor(Math.random() * hues.length)],
-          opacity: Math.random() * 0.5 + 0.3,
-          life: 1
-        });
-      }
+      // Isometric projection
+      // Center the grid on the screen
+      const screenX = canvas.width / 2 + (x - y) * tileW / 2;
+      const screenY = canvas.height / 2 + (x + y) * tileH / 2 - z;
+
+      // Colors based on position to match the app's indigo/cyan/fuchsia gradient
+      const xRatio = (x + gridSize) / (gridSize * 2);
+      const yRatio = (y + gridSize) / (gridSize * 2);
+      const hue = 230 - (xRatio * 40) + (yRatio * 60);
+      
+      const normalizedZ = Math.max(0, Math.min(1, z / 60));
+      
+      // Top face (lightest) - sharp square
+      ctx.fillStyle = `hsla(${hue}, 80%, ${90 + normalizedZ * 10}%, 0.9)`;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY);
+      ctx.lineTo(screenX + tileW / 2, screenY + tileH / 2);
+      ctx.lineTo(screenX, screenY + tileH);
+      ctx.lineTo(screenX - tileW / 2, screenY + tileH / 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Edge highlight
+      ctx.strokeStyle = `hsla(${hue}, 80%, 100%, 0.4)`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Right face (medium)
+      ctx.fillStyle = `hsla(${hue}, 70%, ${75 + normalizedZ * 10}%, 0.85)`;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY + tileH);
+      ctx.lineTo(screenX + tileW / 2, screenY + tileH / 2);
+      ctx.lineTo(screenX + tileW / 2, screenY + tileH / 2 + 200);
+      ctx.lineTo(screenX, screenY + tileH + 200);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = `hsla(${hue}, 70%, 85%, 0.2)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Left face (darkest)
+      ctx.fillStyle = `hsla(${hue}, 60%, ${65 + normalizedZ * 10}%, 0.85)`;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY + tileH);
+      ctx.lineTo(screenX - tileW / 2, screenY + tileH / 2);
+      ctx.lineTo(screenX - tileW / 2, screenY + tileH / 2 + 200);
+      ctx.lineTo(screenX, screenY + tileH + 200);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = `hsla(${hue}, 60%, 75%, 0.2)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
     };
 
-    createParticles();
-
     const render = () => {
-      // Semi-transparent background for motion blur
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw connecting lines between nearby particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const p1 = particles[i];
-          const p2 = particles[j];
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < 150) {
-            const opacity = (1 - distance / 150) * 0.15;
-            ctx.strokeStyle = `rgba(100, 150, 255, ${opacity})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-          }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const gridSize = 25; // 51x51 grid for higher density
+      const size = 14; // Smaller tiles
+      
+      const pillars = [];
+      for (let x = -gridSize; x <= gridSize; x++) {
+        for (let y = -gridSize; y <= gridSize; y++) {
+          pillars.push({ x, y });
         }
       }
+      
+      // Sort back-to-front for isometric drawing
+      pillars.sort((a, b) => (a.x + a.y) - (b.x + b.y));
 
-      // Update and draw particles
-      particles.forEach((p) => {
-        // Attract toward center with some chaos
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const dx = centerX - p.x;
-        const dy = centerY - p.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Subtle attraction to center + orbital motion
-        const attraction = 0.0002;
-        p.vx += (dx / (distance + 1)) * attraction + Math.sin(time * 0.01 + p.x * 0.001) * 0.02;
-        p.vy += (dy / (distance + 1)) * attraction + Math.cos(time * 0.01 + p.y * 0.001) * 0.02;
-
-        // Apply velocity
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // Damping
-        p.vx *= 0.98;
-        p.vy *= 0.98;
-
-        // Wrap around screen edges
-        if (p.x < -100) p.x = canvas.width + 100;
-        if (p.x > canvas.width + 100) p.x = -100;
-        if (p.y < -100) p.y = canvas.height + 100;
-        if (p.y > canvas.height + 100) p.y = -100;
-
-        // Draw glowing particle with bokeh effect
-        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-        const alpha = p.opacity * Math.sin(time * 0.005 + p.hue);
-
-        gradient.addColorStop(0, `hsla(${p.hue}, 100%, 60%, ${Math.max(0, alpha * 0.8)})`);
-        gradient.addColorStop(0.4, `hsla(${p.hue}, 100%, 50%, ${Math.max(0, alpha * 0.5)})`);
-        gradient.addColorStop(1, `hsla(${p.hue}, 100%, 40%, 0)`);
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Bright core
-        ctx.fillStyle = `hsla(${p.hue}, 100%, 80%, ${Math.max(0, alpha * 0.4)})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * 0.25, 0, Math.PI * 2);
-        ctx.fill();
+      pillars.forEach(({ x, y }) => {
+        // Create a wave effect based on distance from center
+        const dist = Math.sqrt(x * x + y * y);
+        // The wave moves outward over time
+        const z = Math.sin(dist * 0.4 - time * 4) * 30 + 30;
+        
+        drawPillar(x, y, z, size, gridSize);
       });
 
-      time++;
+      time += 0.01;
       animationFrameId = requestAnimationFrame(render);
     };
 
@@ -145,10 +112,6 @@ export function SplashGrid() {
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
-
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />;
-}
   }, []);
 
   return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />;
