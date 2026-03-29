@@ -112,7 +112,7 @@ export function SplashGrid() {
       colorCycleProgressRef.current += (colorCycleTarget - colorCycleProgressRef.current) * 0.05;
       const colorCycle = Math.max(0, Math.min(1, colorCycleProgressRef.current));
       const hueShift = colorCycle * (Math.sin(time * 3.1) * 110 + Math.sin(time * 1.55 + 1.2) * 50);
-      const pulseLift = colorCycle * ((Math.sin(time * 3.1) + 1) * 0.5) * 8;
+      const pulseLift = 0;
       const accentHue = 306 + hueShift * 0.6;
 
       nightProgressRef.current += (localNight - nightProgressRef.current) * nightEase;

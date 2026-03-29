@@ -310,6 +310,27 @@ export default function App() {
       const result = await generateCulturalMatrix(audience, brand, selectedGenerations, topicFocus, files, sourcesType);
       setMatrix(result);
       setMatrixMeta({ audience, brand, generations: selectedGenerations, topicFocus, sourcesType });
+
+      // Persist generated searches to backend for cross-user visibility.
+      try {
+        await fetch('http://localhost:3001/api/searches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            brand,
+            audience,
+            topicFocus,
+            generations: selectedGenerations,
+            sourcesType,
+            results: result,
+          }),
+        });
+      } catch (saveErr) {
+        // Do not block core generation flow if backend persistence is unavailable.
+        console.warn('Failed to save search to backend:', saveErr);
+      }
       
       // Save to local storage
       const newMatrix: SavedMatrix = {
