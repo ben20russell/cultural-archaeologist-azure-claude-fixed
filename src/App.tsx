@@ -994,9 +994,6 @@ export default function App() {
               transition={{ delay: 0.5, duration: 0.8 }}
               className="relative z-10 flex flex-col items-center text-center px-4 py-6 pointer-events-none"
             >
-              <div className="inline-flex items-center justify-center p-3 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl border border-white/50 mb-8">
-                <Sparkles className="w-10 h-10 text-[#7c3aed]" />
-              </div>
               <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-white mb-5 drop-shadow-[0_6px_18px_rgba(0,0,0,0.26)] select-none">
                 Cultural{' '}
                 <motion.span
