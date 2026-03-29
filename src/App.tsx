@@ -77,6 +77,7 @@ export default function App() {
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   
   const [isLoading, setIsLoading] = useState(false);
+  const [fakeProgress, setFakeProgress] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [matrix, setMatrix] = useState<CulturalMatrix | null>(null);
@@ -190,6 +191,25 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!isLoading) {
+      setFakeProgress(0);
+      return;
+    }
+
+    setFakeProgress(8);
+    const progressInterval = setInterval(() => {
+      setFakeProgress((prev) => {
+        const ceiling = 92;
+        if (prev >= ceiling) return prev;
+        const step = Math.max(1, (ceiling - prev) * 0.09);
+        return Math.min(ceiling, prev + step);
+      });
+    }, 120);
+
+    return () => clearInterval(progressInterval);
+  }, [isLoading]);
+
   // Auto-detect missing fields based on provided fields
   useEffect(() => {
     if (hasQuotaError) return;
@@ -279,6 +299,7 @@ export default function App() {
     setShowValidation(true);
     if (!audience.trim()) return;
 
+    setFakeProgress(5);
     setIsLoading(true);
     setError(null);
     setShowValidation(false);
@@ -349,6 +370,7 @@ export default function App() {
         setError('Failed to generate cultural archeologist report. Please try again.');
       }
     } finally {
+      setFakeProgress(100);
       setIsLoading(false);
     }
   };
@@ -1558,9 +1580,26 @@ export default function App() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-[288px] mx-auto px-4 py-4 bg-zinc-900 text-white rounded-2xl font-medium hover:bg-zinc-800 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none transition-all flex items-center justify-center gap-2 text-lg mt-2 select-none"
+              className="w-[288px] mx-auto px-4 py-4 bg-zinc-900 text-white rounded-2xl font-medium hover:bg-zinc-800 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none transition-all flex items-center justify-center gap-2 text-lg mt-2 select-none relative overflow-hidden"
             >
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" /> Generate Insights</>}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Generating... {Math.round(fakeProgress)}%</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-5 h-5" /> Generate Insights
+                </>
+              )}
+              {isLoading && (
+                <div className="absolute left-3 right-3 bottom-2 h-1 rounded-full bg-white/20">
+                  <div
+                    className="h-full rounded-full bg-fuchsia-400 transition-all duration-200"
+                    style={{ width: `${fakeProgress}%` }}
+                  />
+                </div>
+              )}
             </button>
             
             {error && (

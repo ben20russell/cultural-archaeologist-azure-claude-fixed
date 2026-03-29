@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 
 export function SplashGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nightTargetRef = useRef(0);
   const nightProgressRef = useRef(0);
   const buildingHitAreasRef = useRef<Array<Array<{ x: number; y: number }>>>([]);
   const transformRef = useRef({ originX: 0, originY: 0, cityScale: 1 });
@@ -109,8 +108,6 @@ export function SplashGrid() {
       const nightEase = 0.04;
 
       const localNight = getNightLevelFromLocalTime();
-      nightTargetRef.current = localNight;
-
       const colorCycleTarget = Date.now() < colorCycleUntilRef.current ? 1 : 0;
       colorCycleProgressRef.current += (colorCycleTarget - colorCycleProgressRef.current) * 0.05;
       const colorCycle = Math.max(0, Math.min(1, colorCycleProgressRef.current));
@@ -118,7 +115,7 @@ export function SplashGrid() {
       const pulseLift = colorCycle * ((Math.sin(time * 3.1) + 1) * 0.5) * 8;
       const accentHue = 306 + hueShift * 0.6;
 
-      nightProgressRef.current += (nightTargetRef.current - nightProgressRef.current) * nightEase;
+      nightProgressRef.current += (localNight - nightProgressRef.current) * nightEase;
       const night = Math.max(0, Math.min(1, nightProgressRef.current));
 
       transformRef.current = { originX, originY, cityScale };
