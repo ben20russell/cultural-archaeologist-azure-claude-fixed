@@ -994,9 +994,6 @@ export default function App() {
               transition={{ delay: 0.5, duration: 0.8 }}
               className="relative z-10 flex flex-col items-center text-center px-4 py-6 pointer-events-none"
             >
-              <div className="inline-flex items-center justify-center p-4 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl border border-white/50 mb-8">
-                <Sparkles className="w-12 h-12 text-[#7c3aed]" />
-              </div>
               <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-zinc-950 mb-5 drop-shadow-[0_4px_14px_rgba(24,24,27,0.2)] select-none">
                 Cultural{' '}
                 <motion.span
@@ -1011,6 +1008,9 @@ export default function App() {
               <p className="text-xl md:text-2xl text-white max-w-2xl mb-10 font-semibold drop-shadow-[0_1px_8px_rgba(0,0,0,0.35)] select-none">
                 Generate cultural insights and audience analysis in seconds.
               </p>
+              <div className="inline-flex items-center justify-center p-4 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl border border-white/50">
+                <Sparkles className="w-12 h-12 text-[#7c3aed]" />
+              </div>
             </motion.div>
           </motion.div>
         )}
