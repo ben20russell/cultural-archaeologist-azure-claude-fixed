@@ -456,5 +456,5 @@ export function SplashGrid() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="absolute bottom-0 left-0 right-0 w-full h-60" />;
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />;
 }

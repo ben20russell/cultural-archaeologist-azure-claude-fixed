@@ -984,15 +984,18 @@ export default function App() {
             onPointerUp={handleSplashHoldEnd}
             onPointerCancel={handleSplashHoldEnd}
           >
-            <div className="absolute inset-0 z-0">
-              <SplashGrid />
+            <div className="absolute inset-0 z-0 flex flex-col">
+              <div className="flex-1"></div>
+              <div className="w-full h-48">
+                <SplashGrid />
+              </div>
             </div>
             
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12, duration: 0.8 }}
-              className="relative z-20 flex flex-col items-center text-center px-4 py-6 pointer-events-none"
+              className="relative z-20 flex flex-col items-center text-center px-4 py-6 pointer-events-none mb-56"
             >
               <div className="inline-flex items-center justify-center p-2.5 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 rounded-2xl shadow-md border border-white/20 mb-8">
                 <Sparkles className="w-7 h-7 text-white" />
