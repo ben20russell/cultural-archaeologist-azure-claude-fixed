@@ -879,9 +879,6 @@ export default function App() {
             className="fixed inset-0 z-[100] bg-[#FAFAFA] flex flex-col items-center justify-center overflow-hidden"
           >
             <div className="absolute inset-0 z-0">
-              <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-indigo-200/30 blur-[120px]" />
-              <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-cyan-200/20 blur-[120px]" />
-              <div className="absolute -bottom-[10%] left-[20%] w-[60%] h-[60%] rounded-full bg-fuchsia-200/20 blur-[120px]" />
               <SplashGrid />
             </div>
             
@@ -889,15 +886,15 @@ export default function App() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.8 }}
-              className="relative z-10 flex flex-col items-center text-center px-4"
+              className="relative z-10 flex flex-col items-center text-center px-4 py-6"
             >
               <div className="inline-flex items-center justify-center p-4 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl border border-white/50 mb-8">
                 <Sparkles className="w-12 h-12 text-indigo-500" />
               </div>
-              <h1 className="text-5xl md:text-7xl font-black tracking-tight text-zinc-900 mb-6 drop-shadow-sm">
-                Cultural <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archeologist</span>
+              <h1 className="text-5xl md:text-7xl font-black tracking-tight text-zinc-900 mb-5 drop-shadow-[0_2px_10px_rgba(255,255,255,0.45)]">
+                Cultural <span className="text-zinc-900">Archeologist</span>
               </h1>
-              <p className="text-xl md:text-2xl text-zinc-600 max-w-2xl mb-12 font-medium drop-shadow-sm">
+              <p className="text-xl md:text-2xl text-white max-w-2xl mb-10 font-semibold drop-shadow-[0_1px_8px_rgba(0,0,0,0.35)]">
                 Generate cultural insights and audience analysis in seconds.
               </p>
             </motion.div>
@@ -1144,7 +1141,7 @@ export default function App() {
               <Search className="w-5 h-5 text-indigo-500" />
             </div>
             <h1 className="text-4xl md:text-6xl font-medium tracking-tight text-zinc-900 mb-6">
-              Cultural Archeologist
+              Cultural <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archeologist</span>
             </h1>
             <p className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed">
               Deep dive into any culture or audience.
