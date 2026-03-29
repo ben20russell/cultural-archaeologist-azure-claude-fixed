@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 const TILE_W = 44;
 const TILE_H = 22;
 const ROAD_INTERVAL = 6;
-const CITY_SATURATION_BOOST = 8;
+const CITY_SATURATION_BOOST = 3;
 const CITY_LIGHTNESS_SHIFT = 2;
 const DISSOLVE_BLEND = 0.28;
 const DISSOLVE_START_DELAY_MS = 220;
