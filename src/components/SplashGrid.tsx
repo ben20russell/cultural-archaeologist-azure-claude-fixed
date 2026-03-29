@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 
 const TILE_W = 44;
 const TILE_H = 22;
-const ROAD_INTERVAL = 6;
 const CITY_SATURATION_BOOST = 0;
 const CITY_LIGHTNESS_SHIFT = 20;
 const DISSOLVE_BLEND = 0.28;
@@ -100,13 +99,8 @@ export function SplashGrid() {
       const colorCycle = 0;
       const hueShift = 0;
       const pulseLift = 0;
-      const accentHue = 320 + hueShift * 0.6;
       const sat = (value: number) => clamp(value + CITY_SATURATION_BOOST, 0, 100);
       const light = (value: number) => clamp(value + CITY_LIGHTNESS_SHIFT, 0, 100);
-      const cityMinX = originX - radiusY * tileW * 0.95 * 0.2;
-      const cityMaxX = originX + radiusY * tileW * 0.95 * 0.2;
-      const cityMinY = originY - radiusX * tileH * 0.8 * 0.2;
-      const cityMaxY = originY + radiusX * tileH * 0.8 * 0.2;
 
       flattenProgressRef.current += (flattenTargetRef.current - flattenProgressRef.current) * 0.08;
       const heightScale = clamp(1 - flattenProgressRef.current, 0, 1);
@@ -144,12 +138,6 @@ export function SplashGrid() {
       // Sort by depth (x) then by horizontal position for proper rendering order
       cells.sort((a, b) => a.x - b.x || a.y - b.y);
 
-      const landmarks = [
-        { x: 35, y: 0 },
-        { x: 20, y: -15 },
-        { x: 10, y: 20 },
-      ];
-
       cells.forEach(({ x, y }) => {
         // Skip cells outside the visible city
         if (Math.abs(y) > radiusY * 0.95) return;
@@ -179,7 +167,8 @@ export function SplashGrid() {
         const h = baseHeight * heightScale * breathe;
 
         // Building dimensions
-        const buildingW = tileW * proj.scale * (0.7 + Math.random() * 0.2);
+        const widthVariance = 0.7 + hash(x * 1.31 + 4.7, y * 0.91 - 2.3) * 0.2;
+        const buildingW = tileW * proj.scale * widthVariance;
         const buildingH = (h * proj.scale) / 8;
 
         // Color based on district and position
@@ -228,10 +217,10 @@ export function SplashGrid() {
         // Fast global fade to make the dissolve feel snappy.
         ctx.fillStyle = `rgba(0, 0, 0, ${0.26 * dissolveProgress})`;
         ctx.fillRect(
-          originX - radiusX * tileW,
-          originY - radiusY * tileH,
-          radiusX * tileW * 2,
-          radiusY * tileH * 2
+          originX - radiusY * tileW,
+          originY - radiusX * tileH,
+          radiusY * tileW * 2,
+          radiusX * tileH * 2
         );
 
         // Deterministic speckle erase for a dissolve effect instead of a plain fade.
@@ -240,8 +229,8 @@ export function SplashGrid() {
         for (let i = 0; i < particleCount; i++) {
           const rx = hash(i * 3.17 + timeSeed * 0.1, i * 7.91);
           const ry = hash(i * 5.11, i * 2.73 + timeSeed * 0.07);
-          const px = originX + (rx * 2 - 1) * radiusX * tileW * 0.9;
-          const py = originY + (ry * 2 - 1) * radiusY * tileH * 0.84;
+          const px = originX + (rx * 2 - 1) * radiusY * tileW * 0.9;
+          const py = originY + (ry * 2 - 1) * radiusX * tileH * 0.84;
           const pr = 0.7 + hash(i * 1.3, i * 9.2) * 2.4;
 
           ctx.beginPath();
