@@ -2,23 +2,16 @@ import React, { useEffect, useRef } from 'react';
 
 const TILE_W = 44;
 const TILE_H = 22;
-const CITY_SATURATION_BOOST = 0;
-const CITY_LIGHTNESS_SHIFT = 20;
-const DISSOLVE_BLEND = 0.28;
-const DISSOLVE_START_DELAY_MS = 220;
-const DISSOLVE_FINAL_HOLD_MS = 180;
-const COLLAPSE_NEAR_COMPLETE = 0.985;
-const DISSOLVE_HOLD_START = 0.9;
-const DISSOLVE_HOLD_LEVEL = 0.92;
-const DISSOLVE_COMPLETE_SNAP = 0.995;
+const CITY_SATURATION_BOOST = 6;
+const CITY_LIGHTNESS_SHIFT = 8;
 
 export function SplashGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const flattenProgressRef = useRef(0);
-  const flattenTargetRef = useRef(0);
-  const dissolveProgressRef = useRef(0);
-  const dissolveDelayUntilRef = useRef<number | null>(null);
-  const dissolveCompleteDelayUntilRef = useRef<number | null>(null);
+  const pointerXRef = useRef(0.5);
+  const pointerYRef = useRef(0.85);
+  const pointerActiveRef = useRef(false);
+  const pointerInfluenceRef = useRef(0);
+  const pointerLiftRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -34,15 +27,10 @@ export function SplashGrid() {
     let animationFrameId: number;
     let time = 0;
 
-    // Head-on perspective projection with 3D depth
-    const perspective = (x: number, y: number, z: number, tileW: number, tileH: number, originX: number, originY: number, fov: number = 0.05) => {
-      const depth = 1 + x * fov;
-      const scale = depth > 0 ? 1 / depth : 1;
+    const iso = (x: number, y: number, z: number, tileW: number, tileH: number, originX: number, originY: number) => {
       return {
-        x: originX + y * tileW * scale,
-        y: originY - z * tileH * scale,
-        scale: scale,
-        depth: depth
+        x: originX + (x - y) * (tileW * 0.5),
+        y: originY + (x + y) * (tileH * 0.5) - z,
       };
     };
 
@@ -75,58 +63,71 @@ export function SplashGrid() {
     window.addEventListener('resize', resize);
     resize();
 
-    const handleCanvasClick = () => {
-      // Click collapses the skyline to a fully flattened state.
-      flattenTargetRef.current = 1;
-      dissolveDelayUntilRef.current = null;
-      dissolveCompleteDelayUntilRef.current = null;
+    const setPointerPosition = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      pointerXRef.current = clamp((clientX - rect.left) / rect.width, 0, 1);
+      pointerYRef.current = clamp((clientY - rect.top) / rect.height, 0, 1);
     };
 
-    canvas.addEventListener('click', handleCanvasClick);
+    const handlePointerDown = (event: PointerEvent) => {
+      pointerActiveRef.current = true;
+      setPointerPosition(event.clientX, event.clientY);
+      if (canvas.setPointerCapture) {
+        canvas.setPointerCapture(event.pointerId);
+      }
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      // Mouse should react on hover; touch/pen react while pressed.
+      if (event.pointerType === 'mouse') {
+        pointerActiveRef.current = true;
+      }
+      setPointerPosition(event.clientX, event.clientY);
+    };
+
+    const handlePointerUpOrCancel = () => {
+      pointerActiveRef.current = false;
+    };
+
+    const handlePointerLeave = () => {
+      pointerActiveRef.current = false;
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUpOrCancel);
+    canvas.addEventListener('pointercancel', handlePointerUpOrCancel);
+    canvas.addEventListener('pointerleave', handlePointerLeave);
 
     const render = () => {
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      const nowMs = performance.now();
 
       const tileW = TILE_W;
       const tileH = TILE_H;
-      const radiusX = 40; // Depth layers
-      const radiusY = Math.ceil(window.innerWidth / (tileW * 0.6)); // Full width distribution
+      const radiusX = Math.ceil(window.innerWidth / (tileW * 0.58));
+      const radiusY = 22;
       const originX = window.innerWidth * 0.5;
-      const originY = window.innerHeight - 80;
-      const cityScale = 0.7;
-      const night = 0;
-      const colorCycle = 0;
-      const hueShift = 0;
-      const pulseLift = 0;
+      const originY = window.innerHeight - 52;
+      const cityScale = 0.49;
       const sat = (value: number) => clamp(value + CITY_SATURATION_BOOST, 0, 100);
       const light = (value: number) => clamp(value + CITY_LIGHTNESS_SHIFT, 0, 100);
 
-      flattenProgressRef.current += (flattenTargetRef.current - flattenProgressRef.current) * 0.08;
-      const heightScale = clamp(1 - flattenProgressRef.current, 0, 1);
-      if (flattenTargetRef.current === 1 && flattenProgressRef.current >= COLLAPSE_NEAR_COMPLETE && dissolveDelayUntilRef.current === null) {
-        dissolveDelayUntilRef.current = nowMs + DISSOLVE_START_DELAY_MS;
-      }
-      const dissolveTarget = dissolveDelayUntilRef.current !== null && nowMs >= dissolveDelayUntilRef.current ? 1 : 0;
-
-      if (dissolveTarget === 1 && dissolveProgressRef.current >= DISSOLVE_HOLD_START && dissolveCompleteDelayUntilRef.current === null) {
-        dissolveCompleteDelayUntilRef.current = nowMs + DISSOLVE_FINAL_HOLD_MS;
-      }
-      const completionGateOpen = dissolveCompleteDelayUntilRef.current !== null && nowMs >= dissolveCompleteDelayUntilRef.current;
-      const effectiveDissolveTarget = dissolveTarget === 1 ? (completionGateOpen ? 1 : DISSOLVE_HOLD_LEVEL) : 0;
-
-      dissolveProgressRef.current += (effectiveDissolveTarget - dissolveProgressRef.current) * DISSOLVE_BLEND;
-      if (dissolveProgressRef.current > DISSOLVE_COMPLETE_SNAP) {
-        dissolveProgressRef.current = 1;
-      }
-      const dissolveProgress = dissolveProgressRef.current;
-      const cityVisibility = 1 - dissolveProgress;
+      const pointerInfluenceTarget = pointerActiveRef.current ? 1 : 0;
+      pointerInfluenceRef.current += (pointerInfluenceTarget - pointerInfluenceRef.current) * 0.24;
+      const pointerLiftTarget = pointerActiveRef.current
+        ? clamp((1 - pointerYRef.current) * 2.2 - 0.2, -0.4, 1.85)
+        : 0;
+      pointerLiftRef.current += (pointerLiftTarget - pointerLiftRef.current) * 0.22;
+      const pointerX = pointerXRef.current * window.innerWidth;
+      const pointerY = pointerYRef.current * window.innerHeight;
+      const pointerSigmaX = window.innerWidth * 0.14;
+      const pointerSigmaY = window.innerHeight * 0.18;
 
       ctx.save();
       ctx.translate(originX, originY);
       ctx.scale(cityScale, cityScale);
       ctx.translate(-originX, -originY);
-      ctx.globalAlpha = cityVisibility;
 
       const cells: Array<{ x: number; y: number }> = [];
       for (let y = -radiusY; y <= radiusY; y++) {
@@ -135,112 +136,87 @@ export function SplashGrid() {
         }
       }
 
-      // Sort by depth (x) then by horizontal position for proper rendering order
       cells.sort((a, b) => a.x - b.x || a.y - b.y);
 
       cells.forEach(({ x, y }) => {
-        // Skip cells outside the visible city
-        if (Math.abs(y) > radiusY * 0.95) return;
-        
-        const proj = perspective(x, y, 0, tileW, tileH, originX, originY);
+        if (Math.abs(y) > radiusY * 0.97) return;
 
-        // Create zone-based districts
-        const downtown = Math.max(0, 1 - Math.hypot(x - 20, y) / (radiusX * 0.6));
-        const midtown = Math.max(0, 1 - Math.hypot(x - 10, y - 20) / (radiusX * 0.9));
-        const zoneCenter = Math.max(downtown, midtown * 0.72);
+        const base = iso(x, y, 0, tileW, tileH, originX, originY);
+        const n = { x: base.x, y: base.y - tileH * 0.5 };
+        const e = { x: base.x + tileW * 0.5, y: base.y };
+        const s = { x: base.x, y: base.y + tileH * 0.5 };
+        const w = { x: base.x - tileW * 0.5, y: base.y };
 
-        let district: 'residential' | 'commercial' | 'industrial' = 'residential';
-        if (zoneCenter > 0.62 || hash(x * 2 + 7, y * 2 - 5) > 0.93) {
-          district = 'commercial';
-        } else if (hash(x - 6, y + 4) > 0.78) {
-          district = 'industrial';
-        }
+        // Very light underlayer so the city sits on a subtle surface.
+        const underLayerAlpha = 0.16 + hash(x * 0.47, y * 0.51) * 0.08;
+        drawPoly([n, e, s, w], `rgba(242, 244, 248, ${underLayerAlpha})`);
 
-        // Skip if water tile
-        const water = Math.abs(y - x * 0.15) < 0.8;
-        if (water) return;
+        const downtown = Math.max(0, 1 - Math.hypot(x + 3, y - 2) / (radiusY * 0.55));
+        const midtown = Math.max(0, 1 - Math.hypot(x - 8, y + 5) / (radiusY * 0.9));
+        const density = Math.max(downtown, midtown * 0.74);
 
-        // Calculate building height with animation
-        const districtBoost = district === 'commercial' ? 54 : district === 'industrial' ? 18 : 0;
-        const baseHeight = 20 + zoneCenter * 118 + districtBoost + hash(x * 3, y * 2) * 20;
-        const breathe = 1 + Math.sin(time * 1.35 + hash(x * 1.7, y * 2.3) * Math.PI * 2) * 0.07;
-        const h = baseHeight * heightScale * breathe;
+        const distX = base.x - pointerX;
+        const distY = base.y - pointerY;
+        const weightX = Math.exp(-(distX * distX) / (2 * pointerSigmaX * pointerSigmaX));
+        const weightY = Math.exp(-(distY * distY) / (2 * pointerSigmaY * pointerSigmaY));
+        const localWeight = weightX * weightY;
+        const pointerLift = pointerLiftRef.current * pointerInfluenceRef.current * localWeight;
 
-        // Building dimensions
-        const widthVariance = 0.7 + hash(x * 1.31 + 4.7, y * 0.91 - 2.3) * 0.2;
-        const buildingW = tileW * proj.scale * widthVariance;
-        const buildingH = (h * proj.scale) / 8;
+        const baseHeight = 28 + density * 170 + hash(x * 3.3, y * 2.1) * 40;
+        const breathe = 1 + Math.sin(time * 1.25 + hash(x * 0.6, y * 0.7) * Math.PI * 2) * 0.045;
+        const interactiveScale = clamp(1 + pointerLift * 2.25, 0.28, 3.7);
+        const height = baseHeight * breathe * interactiveScale;
 
-        // Color based on district and position
-        const districtHue = 228 + (y / radiusY) * 92;
-        const buildingColor = district === 'commercial'
-          ? `hsla(${districtHue + 18}, 78%, ${light(78 - night * 28 + pulseLift * 0.22)}%, 0.92)`
-          : district === 'industrial'
-            ? `hsla(${districtHue + 10}, 34%, ${light(64 - night * 22 + pulseLift * 0.22)}%, 0.88)`
-            : `hsla(${districtHue + 14}, 56%, ${light(74 - night * 24 + pulseLift * 0.22)}%, 0.90)`;
+        const footprint = 0.68 + hash(x * 0.93 - 8, y * 1.1 + 3) * 0.18;
+        const top = iso(x, y, height, tileW * footprint, tileH * footprint, originX, originY);
+        const tn = { x: top.x, y: top.y - (tileH * footprint) * 0.5 };
+        const te = { x: top.x + (tileW * footprint) * 0.5, y: top.y };
+        const ts = { x: top.x, y: top.y + (tileH * footprint) * 0.5 };
+        const tw = { x: top.x - (tileW * footprint) * 0.5, y: top.y };
 
-        // Draw building front face
-        if (buildingH > 0.5) {
-          drawPoly([
-            { x: proj.x - buildingW * 0.5, y: proj.y },
-            { x: proj.x + buildingW * 0.5, y: proj.y },
-            { x: proj.x + buildingW * 0.5, y: proj.y - buildingH },
-            { x: proj.x - buildingW * 0.5, y: proj.y - buildingH }
-          ], buildingColor);
+        const b = iso(x, y, 0, tileW * footprint, tileH * footprint, originX, originY);
+        const be = { x: b.x + (tileW * footprint) * 0.5, y: b.y };
+        const bs = { x: b.x, y: b.y + (tileH * footprint) * 0.5 };
+        const bw = { x: b.x - (tileW * footprint) * 0.5, y: b.y };
 
-          // Draw windows
-          if (buildingH > 3 && buildingW > 3) {
-            const windowSize = Math.max(1, 2.5 * proj.scale);
-            const windowsX = Math.floor(buildingW / (windowSize * 1.5));
-            const windowsY = Math.floor(buildingH / (windowSize * 1.5));
-            
-            for (let wx = 0; wx < windowsX; wx++) {
-              for (let wy = 0; wy < windowsY; wy++) {
-                const windowX = proj.x - buildingW * 0.4 + (wx + 0.5) * (buildingW * 0.8 / windowsX);
-                const windowY = proj.y - buildingH * 0.8 + (wy + 0.5) * (buildingH * 0.6 / windowsY);
-                
-                const isLit = hash(x * 2 + y, wx * 7 + wy * 11) > 0.4;
-                ctx.fillStyle = isLit 
-                  ? `hsla(${districtHue + 40}, 80%, 65%, 0.7)` 
-                  : `hsla(${districtHue}, 30%, 20%, 0.5)`;
-                ctx.fillRect(windowX - windowSize/2, windowY - windowSize/2, windowSize, windowSize);
-              }
+        const hue = 252 + ((y + radiusY) / (radiusY * 2)) * 50;
+        const topColor = `hsla(${hue + 16}, ${sat(74)}%, ${light(82)}%, 0.95)`;
+        const eastColor = `hsla(${hue + 6}, ${sat(62)}%, ${light(60)}%, 0.9)`;
+        const westColor = `hsla(${hue - 4}, ${sat(54)}%, ${light(50)}%, 0.92)`;
+
+        drawPoly([te, ts, bs, be], eastColor);
+        drawPoly([tw, ts, bs, bw], westColor);
+        drawPoly([tn, te, ts, tw], topColor);
+
+        const litChance = 0.24 + density * 0.42;
+        const rows = Math.min(8, Math.max(2, Math.floor(height / 28)));
+        const cols = 2;
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (hash(x * 1.7 + c * 11, y * 1.4 + r * 9) < litChance) {
+              const fx = (c + 1) / (cols + 1);
+              const fy = (r + 1) / (rows + 1);
+              const wx = bw.x + (be.x - bw.x) * fx;
+              const wy = bs.y - (height * 0.85) * fy;
+              ctx.fillStyle = 'hsla(300, 88%, 78%, 0.65)';
+              ctx.fillRect(wx - 1.1, wy - 1.1, 2.2, 2.2);
             }
           }
         }
       });
 
-      if (dissolveProgress > 0) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'destination-out';
+      ctx.restore();
 
-        // Fast global fade to make the dissolve feel snappy.
-        ctx.fillStyle = `rgba(0, 0, 0, ${0.26 * dissolveProgress})`;
-        ctx.fillRect(
-          originX - radiusY * tileW,
-          originY - radiusX * tileH,
-          radiusY * tileW * 2,
-          radiusX * tileH * 2
-        );
-
-        // Deterministic speckle erase for a dissolve effect instead of a plain fade.
-        const particleCount = Math.floor(2400 * dissolveProgress);
-        const timeSeed = Math.floor(time * 220);
-        for (let i = 0; i < particleCount; i++) {
-          const rx = hash(i * 3.17 + timeSeed * 0.1, i * 7.91);
-          const ry = hash(i * 5.11, i * 2.73 + timeSeed * 0.07);
-          const px = originX + (rx * 2 - 1) * radiusY * tileW * 0.9;
-          const py = originY + (ry * 2 - 1) * radiusX * tileH * 0.84;
-          const pr = 0.7 + hash(i * 1.3, i * 9.2) * 2.4;
-
-          ctx.beginPath();
-          ctx.arc(px, py, pr, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.restore();
-      }
-
+      // Soften overlap with headline copy by fading out the city's upper region.
+      const fadeEndY = window.innerHeight * 0.62;
+      const topFade = ctx.createLinearGradient(0, 0, 0, fadeEndY);
+      topFade.addColorStop(0, 'rgba(0, 0, 0, 1)');
+      topFade.addColorStop(0.55, 'rgba(0, 0, 0, 0.38)');
+      topFade.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = topFade;
+      ctx.fillRect(0, 0, window.innerWidth, fadeEndY);
       ctx.restore();
 
       time += 0.008;
@@ -250,11 +226,15 @@ export function SplashGrid() {
     render();
 
     return () => {
-      canvas.removeEventListener('click', handleCanvasClick);
+      canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerup', handlePointerUpOrCancel);
+      canvas.removeEventListener('pointercancel', handlePointerUpOrCancel);
+      canvas.removeEventListener('pointerleave', handlePointerLeave);
       window.removeEventListener('resize', resize);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />;
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ touchAction: 'none' }} />;
 }

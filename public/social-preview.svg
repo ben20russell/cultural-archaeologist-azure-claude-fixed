@@ -5,45 +5,49 @@
       <stop offset="0.52" stop-color="#E0E7FF" />
       <stop offset="1" stop-color="#F5D0FE" />
     </linearGradient>
-    <linearGradient id="cityTop" x1="370" y1="280" x2="820" y2="420" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6366F1" />
-      <stop offset="1" stop-color="#D946EF" />
-    </linearGradient>
-    <linearGradient id="citySide" x1="360" y1="320" x2="880" y2="500" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4338CA" />
-      <stop offset="1" stop-color="#A21CAF" />
-    </linearGradient>
     <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="translate(628 250) rotate(90) scale(230 370)" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9" />
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
     </radialGradient>
+
+    <linearGradient id="bTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F4ECFA"/>
+      <stop offset="1" stop-color="#ECE3F7"/>
+    </linearGradient>
+    <linearGradient id="bEast" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B768D1"/>
+      <stop offset="1" stop-color="#9558C5"/>
+    </linearGradient>
+    <linearGradient id="bWest" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7B5ED9"/>
+      <stop offset="1" stop-color="#6353CC"/>
+    </linearGradient>
+    <linearGradient id="bEastHot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#CD65D1"/>
+      <stop offset="1" stop-color="#AE4CC0"/>
+    </linearGradient>
+    <linearGradient id="bWestHot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#915FD4"/>
+      <stop offset="1" stop-color="#7C48C6"/>
+    </linearGradient>
+
+    <symbol id="tile" viewBox="-28 -16 56 32">
+      <polygon points="0,-15 27,0 0,15 -27,0" fill="#A7A8AE" fill-opacity="0.82"/>
+    </symbol>
+    <symbol id="tower" viewBox="-32 -240 64 272">
+      <polygon points="0,-240 28,-224 0,-208 -28,-224" fill="url(#bTop)"/>
+      <polygon points="0,-208 28,-224 28,0 0,16" fill="url(#bEast)" fill-opacity="0.9"/>
+      <polygon points="0,-208 -28,-224 -28,0 0,16" fill="url(#bWest)" fill-opacity="0.92"/>
+    </symbol>
+    <symbol id="towerHot" viewBox="-32 -260 64 292">
+      <polygon points="0,-260 28,-244 0,-228 -28,-244" fill="url(#bTop)"/>
+      <polygon points="0,-228 28,-244 28,0 0,16" fill="url(#bEastHot)" fill-opacity="0.92"/>
+      <polygon points="0,-228 -28,-244 -28,0 0,16" fill="url(#bWestHot)" fill-opacity="0.94"/>
+    </symbol>
   </defs>
 
   <rect width="1200" height="630" fill="url(#bg)" />
   <rect width="1200" height="630" fill="url(#halo)" />
-
-  <ellipse cx="600" cy="445" rx="310" ry="98" fill="#C7D2FE" fill-opacity="0.6" />
-
-  <polygon points="600,250 880,390 600,530 320,390" fill="url(#cityTop)" fill-opacity="0.95" />
-  <polygon points="600,530 880,390 880,480 600,620" fill="url(#citySide)" fill-opacity="0.84" />
-  <polygon points="600,530 320,390 320,480 600,620" fill="#4F46E5" fill-opacity="0.62" />
-
-  <polygon points="600,188 650,214 600,240 550,214" fill="#FDF4FF" />
-  <polygon points="600,240 650,214 650,330 600,356" fill="#C026D3" fill-opacity="0.82" />
-  <polygon points="600,240 550,214 550,330 600,356" fill="#7C3AED" fill-opacity="0.86" />
-
-  <polygon points="510,240 546,258 510,276 474,258" fill="#EEF2FF" />
-  <polygon points="510,276 546,258 546,342 510,360" fill="#6366F1" fill-opacity="0.78" />
-  <polygon points="510,276 474,258 474,342 510,360" fill="#4F46E5" fill-opacity="0.82" />
-
-  <polygon points="690,252 724,269 690,286 656,269" fill="#F5F3FF" />
-  <polygon points="690,286 724,269 724,350 690,367" fill="#A855F7" fill-opacity="0.8" />
-  <polygon points="690,286 656,269 656,350 690,367" fill="#7E22CE" fill-opacity="0.85" />
-
-  <circle cx="532" cy="384" r="5" fill="#FFFFFF" fill-opacity="0.86" />
-  <circle cx="565" cy="401" r="4" fill="#F0ABFC" fill-opacity="0.9" />
-  <circle cx="635" cy="417" r="5" fill="#FFFFFF" fill-opacity="0.86" />
-  <circle cx="670" cy="398" r="4" fill="#F0ABFC" fill-opacity="0.9" />
 
   <path d="M188 112h160" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="16" stroke-linecap="round" />
   <path d="M860 540h180" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="14" stroke-linecap="round" />
@@ -54,4 +58,51 @@
   <text x="110" y="212" font-family="Avenir, Montserrat, 'Segoe UI', sans-serif" font-size="58" font-weight="800" fill="#D946EF">
     Archeologist
   </text>
+
+  <!-- Replaced only the cityscape graphic with the attached-style isometric cluster -->
+  <g transform="translate(260 136) scale(0.78)">
+    <g opacity="0.9">
+      <use href="#tile" transform="translate(-70 206) scale(1.28 1)"/>
+      <use href="#tile" transform="translate(-20 190) scale(1.28 1)"/>
+      <use href="#tile" transform="translate(30 174) scale(1.28 1)"/>
+      <use href="#tile" transform="translate(80 158) scale(1.28 1)"/>
+      <use href="#tile" transform="translate(130 142) scale(1.28 1)"/>
+      <use href="#tile" transform="translate(180 126) scale(1.28 1)"/>
+      <circle cx="-32" cy="222" r="2" fill="#E98CDC"/>
+      <circle cx="22" cy="205" r="2" fill="#E98CDC"/>
+      <circle cx="74" cy="190" r="1.9" fill="#E98CDC"/>
+    </g>
+
+    <g>
+      <use href="#tower" transform="translate(250 290) scale(0.92 1.05)"/>
+      <use href="#tower" transform="translate(294 280) scale(0.96 1.2)"/>
+      <use href="#tower" transform="translate(338 272) scale(1.0 1.34)"/>
+      <use href="#towerHot" transform="translate(382 264) scale(1.04 1.52)"/>
+      <use href="#tower" transform="translate(426 258) scale(1.06 1.68)"/>
+      <use href="#tower" transform="translate(470 258) scale(1.05 1.7)"/>
+      <use href="#towerHot" transform="translate(514 262) scale(1.02 1.56)"/>
+      <use href="#tower" transform="translate(558 270) scale(0.98 1.38)"/>
+      <use href="#tower" transform="translate(602 278) scale(0.94 1.2)"/>
+
+      <use href="#tower" transform="translate(292 316) scale(0.9 1.0)"/>
+      <use href="#towerHot" transform="translate(336 308) scale(0.96 1.2)"/>
+      <use href="#tower" transform="translate(380 300) scale(1.0 1.38)"/>
+      <use href="#tower" transform="translate(424 294) scale(1.04 1.56)"/>
+      <use href="#towerHot" transform="translate(468 294) scale(1.04 1.58)"/>
+      <use href="#tower" transform="translate(512 298) scale(1.0 1.42)"/>
+      <use href="#tower" transform="translate(556 306) scale(0.96 1.24)"/>
+      <use href="#towerHot" transform="translate(600 314) scale(0.9 1.04)"/>
+
+      <use href="#tower" transform="translate(338 342) scale(0.84 0.92)"/>
+      <use href="#tower" transform="translate(382 336) scale(0.88 1.06)"/>
+      <use href="#towerHot" transform="translate(426 330) scale(0.9 1.2)"/>
+      <use href="#tower" transform="translate(470 328) scale(0.92 1.26)"/>
+      <use href="#tower" transform="translate(514 332) scale(0.9 1.14)"/>
+      <use href="#towerHot" transform="translate(558 338) scale(0.86 0.98)"/>
+
+      <circle cx="214" cy="320" r="2.1" fill="#E98CDC"/>
+      <circle cx="266" cy="304" r="1.9" fill="#E98CDC"/>
+      <circle cx="314" cy="292" r="2" fill="#E98CDC"/>
+    </g>
+  </g>
 </svg>
