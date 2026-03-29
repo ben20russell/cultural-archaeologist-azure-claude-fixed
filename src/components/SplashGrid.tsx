@@ -10,6 +10,7 @@ export function SplashGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const flattenProgressRef = useRef(0);
   const flattenTargetRef = useRef(0);
+  const shutdownProgressRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -72,8 +73,10 @@ export function SplashGrid() {
       const tileW = TILE_W;
       const tileH = TILE_H;
       const radius = 24;
-      const originX = window.innerWidth * 0.5;
-      const originY = window.innerHeight * 0.5 + 40;
+      const screenCenterX = window.innerWidth * 0.5;
+      const screenCenterY = window.innerHeight * 0.5;
+      const originX = screenCenterX;
+      const originY = screenCenterY + 40;
       const cityScale = 0.7;
       const night = 0;
       const colorCycle = 0;
@@ -86,13 +89,27 @@ export function SplashGrid() {
       const cityMaxX = originX + radius * tileW * 0.95;
       const cityMinY = originY - radius * tileH * 0.8;
       const cityMaxY = originY + radius * tileH * 0.8;
+      const cityHalfWidth = radius * tileW * 0.95;
 
       flattenProgressRef.current += (flattenTargetRef.current - flattenProgressRef.current) * 0.08;
       const heightScale = clamp(1 - flattenProgressRef.current, 0, 1);
+      const shutdownTarget = flattenProgressRef.current > 0.92 ? 1 : 0;
+      shutdownProgressRef.current += (shutdownTarget - shutdownProgressRef.current) * 0.065;
+      const shutdown = clamp(shutdownProgressRef.current, 0, 1);
+      const shutdownYScale = Math.max(0.003, 1 - shutdown * 0.997);
+      const shutdownXScale = Math.max(0.003, 1 - clamp((shutdown - 0.62) / 0.38, 0, 1) * 0.997);
+      const shutdownAlpha = 1 - clamp((shutdown - 0.7) / 0.3, 0, 1);
 
       ctx.save();
       ctx.translate(originX, originY);
       ctx.scale(cityScale, cityScale);
+      if (shutdown > 0) {
+        // CRT-style shutdown: collapse vertically first, then squeeze inward and fade.
+        ctx.translate(screenCenterX, screenCenterY);
+        ctx.scale(shutdownXScale, shutdownYScale);
+        ctx.translate(-screenCenterX, -screenCenterY);
+        ctx.globalAlpha = shutdownAlpha;
+      }
       ctx.translate(-originX, -originY);
 
       const cells: Array<{ x: number; y: number }> = [];
@@ -384,6 +401,18 @@ export function SplashGrid() {
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
       ctx.restore();
+
+      if (shutdown > 0.42 && shutdown < 0.98) {
+        const scanT = clamp((shutdown - 0.42) / 0.56, 0, 1);
+        const scanAlpha = (1 - Math.abs(scanT - 0.5) * 2) * 0.62;
+        const scanHalf = cityHalfWidth * cityScale * (0.58 - scanT * 0.2);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${scanAlpha})`;
+        ctx.lineWidth = 1.2 + (1 - scanT) * 1.8;
+        ctx.beginPath();
+        ctx.moveTo(screenCenterX - scanHalf, screenCenterY);
+        ctx.lineTo(screenCenterX + scanHalf, screenCenterY);
+        ctx.stroke();
+      }
 
       time += 0.008;
       animationFrameId = requestAnimationFrame(render);
