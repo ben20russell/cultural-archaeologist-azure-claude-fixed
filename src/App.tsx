@@ -889,7 +889,7 @@ export default function App() {
               className="relative z-10 flex flex-col items-center text-center px-4 py-6"
             >
               <div className="inline-flex items-center justify-center p-4 bg-white/80 backdrop-blur-md rounded-3xl shadow-xl border border-white/50 mb-8">
-                <Sparkles className="w-12 h-12 text-indigo-500" />
+                <Sparkles className="w-12 h-12 text-[#7c3aed]" />
               </div>
               <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-zinc-900 mb-5 drop-shadow-[0_2px_10px_rgba(255,255,255,0.45)]">
                 Cultural{' '}
