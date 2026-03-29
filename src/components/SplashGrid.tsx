@@ -15,7 +15,6 @@ const CAR_ROUTE_LIMIT = 18;
 
 export function SplashGrid() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nightProgressRef = useRef(0);
   const transformRef = useRef({ originX: 0, originY: 0, cityScale: 1 });
   const carRef = useRef<CarAnimationState | null>(null);
 
@@ -51,18 +50,6 @@ export function SplashGrid() {
 
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
     const nearestMultiple = (value: number, step: number) => Math.round(value / step) * step;
-
-    const getNightLevelFromLocalTime = () => {
-      const now = new Date();
-      const h = now.getHours() + now.getMinutes() / 60;
-
-      // 0 = day, 1 = night, with blended transitions around dawn/dusk.
-      if (h < 5) return 1;
-      if (h < 7) return 1 - (h - 5) / 2;
-      if (h < 17) return 0;
-      if (h < 19.5) return (h - 17) / 2.5;
-      return 1;
-    };
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -152,16 +139,11 @@ export function SplashGrid() {
       const originX = window.innerWidth * 0.5;
       const originY = window.innerHeight * 0.5 + 40;
       const cityScale = 0.7;
-      const nightEase = 0.04;
-
-      const localNight = getNightLevelFromLocalTime();
+      const night = 0;
       const colorCycle = 0;
       const hueShift = 0;
       const pulseLift = 0;
       const accentHue = 306 + hueShift * 0.6;
-
-      nightProgressRef.current += (localNight - nightProgressRef.current) * nightEase;
-      const night = Math.max(0, Math.min(1, nightProgressRef.current));
 
       transformRef.current = { originX, originY, cityScale };
 
