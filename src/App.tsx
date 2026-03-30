@@ -24,6 +24,46 @@ interface SavedMatrix {
   matrix: CulturalMatrix;
 }
 
+interface MatrixContext {
+  audience: string;
+  brand: string;
+  generations: string[];
+  topicFocus?: string;
+}
+
+interface OAuthTokenResponse {
+  access_token: string;
+  error?: string;
+}
+
+type MatrixInsightKey =
+  | 'moments'
+  | 'beliefs'
+  | 'tone'
+  | 'language'
+  | 'behaviors'
+  | 'contradictions'
+  | 'community'
+  | 'influencers';
+
+const MATRIX_INSIGHT_KEYS: MatrixInsightKey[] = [
+  'moments',
+  'beliefs',
+  'tone',
+  'language',
+  'behaviors',
+  'contradictions',
+  'community',
+  'influencers',
+];
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+};
+
 const GENERATIONS = [
   "Gen Alpha (2013–mid 2020s)",
   "Gen Z (1997–2012)",
@@ -95,6 +135,39 @@ export default function App() {
   const visibleSavedMatrices = useMemo(() => {
     return savedMatrices.filter(sm => !deletingIds.includes(sm.id));
   }, [savedMatrices, deletingIds]);
+
+  const filteredSavedMatrices = useMemo(() => {
+    const search = brand.trim().toLowerCase();
+    if (!search) {
+      return visibleSavedMatrices;
+    }
+
+    return visibleSavedMatrices.filter(
+      (sm) =>
+        sm.brand.toLowerCase().includes(search) ||
+        sm.audience.toLowerCase().includes(search)
+    );
+  }, [brand, visibleSavedMatrices]);
+
+  const loadSavedMatrix = (sm: SavedMatrix, shouldScroll = false) => {
+    setBrand(sm.brand);
+    setAudience(sm.audience);
+    setSelectedGenerations(sm.generations || []);
+    setTopicFocus(sm.topicFocus || '');
+    setSourcesType(sm.sourcesType || []);
+    setMatrix(sm.matrix);
+    setMatrixMeta({
+      audience: sm.audience,
+      brand: sm.brand,
+      generations: sm.generations || [],
+      topicFocus: sm.topicFocus,
+      sourcesType: sm.sourcesType || [],
+    });
+
+    if (shouldScroll) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const deepDiveDragControls = useDragControls();
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,9 +303,9 @@ export default function App() {
         if (result.brand && !hasBrand) setBrand(result.brand);
         if (result.audience && !hasAudience) setAudience(result.audience);
         if (result.topicFocus && !hasTopic) setTopicFocus(result.topicFocus);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to auto-populate fields:", err);
-        const errorMessage = err?.message || String(err);
+        const errorMessage = getErrorMessage(err);
         if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
           setHasQuotaError(true);
           setToast('API quota exceeded. Auto-detect disabled.');
@@ -265,9 +338,9 @@ export default function App() {
       try {
         const suggestions = await suggestBrands(brand);
         setBrandSuggestions(suggestions);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to get brand suggestions:", err);
-        const errorMessage = err?.message || String(err);
+        const errorMessage = getErrorMessage(err);
         if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
           setHasQuotaError(true);
         }
@@ -382,9 +455,9 @@ export default function App() {
       // Start background deep dives
       runBackgroundDeepDives(result, { audience, brand, generations: selectedGenerations, topicFocus });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const errorMessage = err?.message || String(err);
+      const errorMessage = getErrorMessage(err);
       if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
         setError('You exceeded your current API quota. Please check your plan and billing details.');
       } else {
@@ -396,12 +469,10 @@ export default function App() {
     }
   };
 
-  const runBackgroundDeepDives = async (currentMatrix: CulturalMatrix, context: any) => {
+  const runBackgroundDeepDives = async (currentMatrix: CulturalMatrix, context: MatrixContext) => {
     setIsGeneratingDeepDives(true);
     
-    const categories: (keyof CulturalMatrix)[] = [
-      'moments', 'beliefs', 'tone', 'language', 'behaviors', 'contradictions', 'community', 'influencers'
-    ];
+    const categories = MATRIX_INSIGHT_KEYS;
     
     let totalItems = 0;
     categories.forEach(cat => {
@@ -851,7 +922,7 @@ export default function App() {
   };
 
   const exportToGoogleSlides = () => {
-    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || "483188066572-1nekvjbe7876ge1efg34lj1eeegj4k5d.apps.googleusercontent.com";
+    const clientId = (import.meta as ImportMeta & { env?: { VITE_GOOGLE_CLIENT_ID?: string } }).env?.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
       setShowGoogleAuthModal(true);
       return;
@@ -865,7 +936,7 @@ export default function App() {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: async (response: any) => {
+        callback: async (response: OAuthTokenResponse) => {
           if (response.error) {
             console.error(response);
             setIsExporting(false);
@@ -1339,20 +1410,12 @@ export default function App() {
                             <Clock className="w-4 h-4" /> Recent Searches
                           </div>
                           <div className="p-2">
-                            {visibleSavedMatrices
-                              .filter(sm => sm.brand.toLowerCase().includes(brand.toLowerCase()) || sm.audience.toLowerCase().includes(brand.toLowerCase()))
-                              .map(sm => (
+                            {filteredSavedMatrices.map(sm => (
                               <div key={sm.id} className="group flex items-center justify-between w-full hover:bg-zinc-50 rounded-xl transition-colors">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setBrand(sm.brand);
-                                    setAudience(sm.audience);
-                                    setSelectedGenerations(sm.generations || []);
-                                    setTopicFocus(sm.topicFocus || '');
-                                    setSourcesType(sm.sourcesType || []);
-                                    setMatrix(sm.matrix);
-                                    setMatrixMeta({ audience: sm.audience, brand: sm.brand, generations: sm.generations || [], topicFocus: sm.topicFocus, sourcesType: sm.sourcesType || [] });
+                                    loadSavedMatrix(sm);
                                     setIsBrandDropdownOpen(false);
                                   }}
                                   className="flex-1 text-left px-4 py-3 flex flex-col focus:outline-none focus:bg-zinc-50 rounded-xl transition-colors"
@@ -1378,7 +1441,7 @@ export default function App() {
                                 </button>
                               </div>
                             ))}
-                            {visibleSavedMatrices.filter(sm => sm.brand.toLowerCase().includes(brand.toLowerCase()) || sm.audience.toLowerCase().includes(brand.toLowerCase())).length === 0 && (
+                            {filteredSavedMatrices.length === 0 && (
                               <div className="p-4 text-sm text-zinc-500 text-center">No matching saved searches.</div>
                             )}
                           </div>
@@ -1813,7 +1876,9 @@ export default function App() {
                   <Sparkles className="w-4 h-4 text-indigo-500" />
                   <span>Highly unique observation</span>
                 </div>
-                {['moments', 'beliefs', 'tone', 'language', 'behaviors', 'contradictions', 'community', 'influencers'].some(cat => matrix[cat as keyof CulturalMatrix]?.some((item: any) => item.isFromDocument)) && (
+                {MATRIX_INSIGHT_KEYS.some((cat) =>
+                  matrix[cat]?.some((item) => item.isFromDocument)
+                ) && (
                   <div className="flex items-center gap-2 text-sm text-zinc-600">
                     <FileText className="w-4 h-4 text-emerald-500" />
                     <span>Sourced from uploaded document</span>
@@ -1897,14 +1962,7 @@ export default function App() {
                   key={sm.id} 
                   className="group relative bg-white border border-zinc-200 rounded-xl p-3 hover:shadow-md transition-all hover:border-indigo-200 cursor-pointer flex flex-col items-start text-left h-full" 
                   onClick={() => {
-                    setBrand(sm.brand);
-                    setAudience(sm.audience);
-                    setSelectedGenerations(sm.generations || []);
-                    setTopicFocus(sm.topicFocus || '');
-                    setSourcesType(sm.sourcesType || []);
-                    setMatrix(sm.matrix);
-                    setMatrixMeta({ audience: sm.audience, brand: sm.brand, generations: sm.generations || [], topicFocus: sm.topicFocus, sourcesType: sm.sourcesType || [] });
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    loadSavedMatrix(sm, true);
                   }}
                 >
                   <div className="flex justify-between items-start w-full mb-1">

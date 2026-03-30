@@ -1,4 +1,5 @@
 import { AzureOpenAI } from "openai";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from "./ai";
@@ -240,7 +241,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
   // (like Bing Search API) and use OpenAI's function calling to fetch results.
   // For this template, we rely on the model's internal knowledge.
 
-  const messages: any[] = [
+  const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemInstruction },
     { role: "user", content: prompt }
   ];
