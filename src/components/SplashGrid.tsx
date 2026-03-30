@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const TILE_W = 44;
 const TILE_H = 22;
@@ -143,10 +143,6 @@ export function SplashGrid() {
         if (Math.abs(y) > radiusY * 0.97) return;
 
         const base = iso(x, y, 0, tileW, tileH, originX, originY);
-        const n = { x: base.x, y: base.y - tileH * 0.5 };
-        const e = { x: base.x + tileW * 0.5, y: base.y };
-        const s = { x: base.x, y: base.y + tileH * 0.5 };
-        const w = { x: base.x - tileW * 0.5, y: base.y };
 
         const water = Math.abs(y - x * 0.24 + 1.5) < 0.9;
         if (water) {
