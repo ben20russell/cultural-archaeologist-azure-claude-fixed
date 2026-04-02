@@ -1,19 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Brand Archeologist
 
-# Run and deploy your AI Studio app
+Brand Archeologist is a Vite + React research app with two primary workflows:
 
-This contains everything you need to run your app locally.
+- Cultural Archeologist: generate audience and culture insights.
+- Visual Design Deep Dive: compare brand identity systems and visual signals.
 
-View your app in AI Studio: https://ai.studio/apps/bfa12f10-722d-4640-9612-016229652fc6
+The workspace also includes a small Express server used for persisted searches.
 
-## Run Locally
+## Prerequisites
 
-**Prerequisites:**  Node.js
+- Node.js 20+
+- An Azure OpenAI deployment with the required credentials
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Environment Setup
+
+Copy `.env.example` to `.env` and fill in these values:
+
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_ENDPOINT`
+- `AZURE_OPENAI_API_VERSION`
+- `AZURE_OPENAI_DEPLOYMENT_NAME`
+
+## Local Development
+
+1. Install dependencies with `npm install`.
+2. Start the API server with `npm run server`.
+3. In a separate terminal, start the Vite app with `npm run dev`.
+
+The frontend runs on `http://localhost:3000` and the Express server runs on `http://localhost:3001`.
+
+## Validation
+
+- Run tests with `npm test`.
+- Run type checks with `npm run lint`.
+- Build the client with `npm run build`.
+
+## Notes
+
+- `.env` is ignored by git; keep credentials there and out of committed files.
+- The current frontend still imports the Azure service layer directly, so Azure credentials should only be used in trusted local environments until that service is fully moved behind the server.
+*** Add File: /Users/brussell/Downloads/Code/Cultural Archeologist/cultural-archaeologist-azure-claude-fixed/.env.example
+AZURE_OPENAI_API_KEY=your-azure-openai-api-key
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com/
+AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o

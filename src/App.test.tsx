@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 import { describe, it, expect } from 'vitest';
 
@@ -10,6 +10,9 @@ describe('App Component', () => {
 
   it('has input fields for brand and audience', () => {
     render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /cultural archeologist/i }));
+
     expect(screen.getByPlaceholderText(/Brand or Category/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Primary Audience/i)).toBeInTheDocument();
   });

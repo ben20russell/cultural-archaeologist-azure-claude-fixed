@@ -80,6 +80,41 @@ const SOURCES_TYPES = [
   "Niche/Fringe"
 ];
 
+const SAVED_MATRICES_STORAGE_KEY = 'cultural_matrices';
+
+const readSavedMatrices = (): SavedMatrix[] => {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const saved = window.localStorage.getItem(SAVED_MATRICES_STORAGE_KEY);
+    if (!saved) {
+      return [];
+    }
+
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('Failed to read saved matrices from local storage:', error);
+    return [];
+  }
+};
+
+const persistSavedMatrices = (matrices: SavedMatrix[]): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    window.localStorage.setItem(SAVED_MATRICES_STORAGE_KEY, JSON.stringify(matrices));
+    return true;
+  } catch (error) {
+    console.warn('Failed to persist saved matrices to local storage:', error);
+    return false;
+  }
+};
+
 export default function App() {
   const SPLASH_DURATION_MS = 3000;
   const [showSplash, setShowSplash] = useState(true);
@@ -131,7 +166,7 @@ export default function App() {
   const [deepDiveProgress, setDeepDiveProgress] = useState({ current: 0, total: 0 });
 
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
-  const deleteTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+  const deleteTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [undoToast, setUndoToast] = useState<{ id: string, message: string } | null>(null);
   
   const visibleSavedMatrices = useMemo(() => {
@@ -260,10 +295,16 @@ export default function App() {
 
   // Load saved matrices
   useEffect(() => {
-    const saved = localStorage.getItem('cultural_matrices');
-    if (saved) {
-      try { setSavedMatrices(JSON.parse(saved)); } catch (e) {}
-    }
+    setSavedMatrices(readSavedMatrices());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(deleteTimeouts.current).forEach((timeoutId) => {
+        clearTimeout(timeoutId as ReturnType<typeof setTimeout>);
+      });
+      deleteTimeouts.current = {};
+    };
   }, []);
 
   useEffect(() => {
@@ -433,7 +474,9 @@ export default function App() {
       };
       const updated = [newMatrix, ...savedMatrices];
       setSavedMatrices(updated);
-      localStorage.setItem('cultural_matrices', JSON.stringify(updated));
+      if (!persistSavedMatrices(updated)) {
+        setToast('Search generated, but local save failed in this browser.');
+      }
       
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -527,7 +570,9 @@ export default function App() {
           const updated = [...prev];
           if (updated.length > 0) {
             updated[0].matrix = { ...updatedMatrix };
-            localStorage.setItem('cultural_matrices', JSON.stringify(updated));
+            if (!persistSavedMatrices(updated)) {
+              setToast('Deep dives updated, but local save failed in this browser.');
+            }
           }
           return updated;
         });
@@ -591,7 +636,9 @@ export default function App() {
     const timeoutId = setTimeout(() => {
       setSavedMatrices(prev => {
         const updated = prev.filter(m => m.id !== id);
-        localStorage.setItem('cultural_matrices', JSON.stringify(updated));
+        if (!persistSavedMatrices(updated)) {
+          setToast('Search deleted, but local save failed in this browser.');
+        }
         return updated;
       });
       setDeletingIds(prev => prev.filter(dId => dId !== id));
@@ -1147,7 +1194,7 @@ export default function App() {
             </div>
           </motion.section>
         ) : activeExperience === 'brand' ? (
-          <BrandDeepDivePage onBack={() => setActiveExperience('research')} />
+          <BrandDeepDivePage onBack={() => setActiveExperience(null)} />
         ) : (
           <>
             {/* Top Navigation / Actions */}
