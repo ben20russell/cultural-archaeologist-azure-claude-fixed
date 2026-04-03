@@ -2308,14 +2308,8 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
     return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
   };
 
-  const evidenceLabelClass = (label: 'known' | 'inferred' | 'speculative') => {
-    if (label === 'known') {
-      return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    }
-    if (label === 'speculative') {
-      return 'bg-amber-50 text-amber-700 border border-amber-200';
-    }
-    return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
+  const evidenceLabelClass = (_label: 'known' | 'inferred' | 'speculative') => {
+    return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
   };
 
   const extractEvidenceLabels = (text: string): { cleanText: string; labels: Array<'known' | 'inferred' | 'speculative'> } => {
