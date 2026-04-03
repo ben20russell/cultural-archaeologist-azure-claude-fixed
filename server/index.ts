@@ -87,7 +87,7 @@ app.post('/api/searches', (req, res) => {
 });
 
 // Get all searches
-app.get('/api/searches', (req, res) => {
+app.get('/api/searches', (_req, res) => {
   try {
     const searches = db.prepare('SELECT * FROM searches ORDER BY createdAt DESC LIMIT 100').all();
     

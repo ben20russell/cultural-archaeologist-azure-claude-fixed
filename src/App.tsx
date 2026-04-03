@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
-import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Pencil, Target, Upload, X, RefreshCw, Calendar, Activity } from 'lucide-react';
+import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Calendar, Activity } from 'lucide-react';
 import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from './services/azure-openai';
 import { generateCulturalMatrix, autoPopulateFields, suggestBrands, askMatrixQuestion, generateDeepDive, generateDeepDivesBatch } from './services/azure-openai';
 import { SplashGrid } from './components/SplashGrid';
@@ -1392,7 +1392,7 @@ export default function App() {
 
                 <div className="bg-zinc-50 rounded-xl p-5 mb-8 border border-zinc-100">
                   <h4 className="font-bold text-zinc-900 mb-2">Selected Insight</h4>
-                  <p className="text-zinc-700 text-sm">{deepDiveInsight.text}</p>
+                  <p className="text-zinc-700 text-sm">{stripDemographicEvidenceMarkers(deepDiveInsight.text)}</p>
                 </div>
 
                 {isDeepDiveLoading ? (
@@ -2314,22 +2314,19 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
 
   const extractEvidenceLabels = (text: string): { cleanText: string; labels: Array<'known' | 'inferred' | 'speculative'> } => {
     const labels: Array<'known' | 'inferred' | 'speculative'> = [];
-    let cleanText = text;
+    const cleanText = text;
 
-    if (/\[KNOWN\]/i.test(cleanText)) {
-      labels.push('known');
-      cleanText = cleanText.replace(/\[KNOWN\]\s*/gi, '');
-    }
-    if (/\[INFERRED\]/i.test(cleanText)) {
-      labels.push('inferred');
-      cleanText = cleanText.replace(/\[INFERRED\]\s*/gi, '');
-    }
-    if (/\[SPECULATIVE\]/i.test(cleanText)) {
-      labels.push('speculative');
-      cleanText = cleanText.replace(/\[SPECULATIVE\]\s*/gi, '');
-    }
+    if (/\[KNOWN\]|\bKNOWN\b\s*[:\-]?/i.test(cleanText)) labels.push('known');
+    if (/\[INFERRED?\]|\bINFERRED?\b\s*[:\-]?/i.test(cleanText)) labels.push('inferred');
+    if (/\[SPECULATIVE\]|\bSPECULATIVE\b\s*[:\-]?/i.test(cleanText)) labels.push('speculative');
 
-    return { cleanText: cleanText.trim(), labels };
+    const stripped = cleanText
+      .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE)\]\s*/gi, '')
+      .replace(/\b(KNOWN|INFERRED|INFERED|SPECULATIVE)\b\s*[:\-]?\s*/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+
+    return { cleanText: stripped, labels };
   };
   
   if (!items || items.length === 0) return null;

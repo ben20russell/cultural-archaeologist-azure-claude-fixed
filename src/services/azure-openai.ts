@@ -304,11 +304,6 @@ const EvidenceBundleSchema = z.object({
   evidence: z.array(EvidenceItemSchema),
 });
 
-const ThinnessReviewSchema = z.object({
-  isThin: z.boolean(),
-  reason: z.string(),
-});
-
 const DevilsAdvocateSchema = z.object({
   counterArgument: z.string(),
   keyWeaknesses: z.array(z.string()),

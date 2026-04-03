@@ -16,7 +16,6 @@ import {
   RefreshCw,
   Search,
   ExternalLink,
-  Download,
   Share2,
   Info,
 } from 'lucide-react';
@@ -60,8 +59,6 @@ const VISUAL_METHOD_LABEL: Record<VisualMethod, string> = {
   deterministic: 'Derived Domain Logo',
   screenshot: 'Website Screenshot Previews',
 };
-
-const VISUAL_METHOD_PRIORITY: VisualMethod[] = ['ai', 'deterministic', 'screenshot'];
 
 const getImageProxyBaseUrl = (): string => {
   const configured = (((import.meta as any).env?.VITE_IMAGE_PROXY_BASE_URL as string) || '').trim();
@@ -311,8 +308,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [targetAudience, setTargetAudience] = useState('');
   const [resultTab, setResultTab] = useState<ResultTab>('profiles');
   const [compareElement, setCompareElement] = useState<CompareElement>('primaryColors');
-  const [compareDropdownOpen, setCompareDropdownOpen] = useState(false);
-  const [selectedElementToCompare, setSelectedElementToCompare] = useState<CompareElement | null>(null);
+  const [_compareDropdownOpen, _setCompareDropdownOpen] = useState(false);
+  const [_selectedElementToCompare, _setSelectedElementToCompare] = useState<CompareElement | null>(null);
   const [showValidation, setShowValidation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
@@ -919,28 +916,6 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         },
       };
     });
-  };
-
-  const saveToLocalStorage = () => {
-    if (!report) return;
-    const filename = `brand_deepdive_${Date.now()}.json`;
-    const data = {
-      date: new Date().toISOString(),
-      analysisObjective,
-      targetAudience,
-      report,
-    };
-    const dataStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setToast('Brand Deep Dive saved!');
   };
 
   const exportToPPTX = () => {
