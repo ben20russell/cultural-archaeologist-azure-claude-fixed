@@ -138,4 +138,29 @@ describe('BrandDeepDivePage', () => {
     expect(logo).toHaveAttribute('src', expect.stringMatching(/apple-touch-icon\.png|apple-touch-icon%2Epng|apple-touch-icon%2Fpng/i));
     expect(logo.getAttribute('src')).not.toContain('google.com/s2/favicons');
   });
+
+  it('shows Compare Across Brands popup when clicking a result box', async () => {
+    render(<BrandDeepDivePage onBack={() => {}} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Brand 1 Name'), {
+      target: { value: 'Aesop' },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText('Visual Identity Objective (Required) e.g. Compare distinctiveness and consistency across premium skincare brands'),
+      {
+        target: { value: 'Compare premium skincare brands' },
+      }
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
+
+    await screen.findByText(/Ask the Archeologist/i);
+
+    fireEvent.click(screen.getAllByTestId('compare-trigger-typography')[0]);
+
+    const compareButton = await screen.findByRole('button', { name: /compare across brands/i });
+    fireEvent.click(compareButton);
+
+    expect(await screen.findByText('Typography Comparison')).toBeInTheDocument();
+  });
 });

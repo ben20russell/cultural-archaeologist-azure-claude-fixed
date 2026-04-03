@@ -2507,6 +2507,12 @@ export default function App() {
         )}
         <FeedbackChatWidget />
       </main>
+
+      {activeExperience !== null && (
+        <footer className="relative z-10 py-6 text-center no-print">
+          <p className="text-xs text-zinc-400">AI models can make mistakes. Always double check your work. Remember to think critically.</p>
+        </footer>
+      )}
     </div>
   );
 }

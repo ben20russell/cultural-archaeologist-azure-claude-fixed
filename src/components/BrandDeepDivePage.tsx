@@ -18,6 +18,8 @@ import {
   ExternalLink,
   Share2,
   Info,
+  Presentation,
+  FileText,
 } from 'lucide-react';
 import pptxgen from 'pptxgenjs';
 import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
@@ -53,6 +55,12 @@ interface SavedDeepDiveSearch {
 
 type ResultTab = 'profiles' | 'compare';
 type CompareElement = 'primaryColors' | 'accentColors' | 'neutrals' | 'typography' | 'imageryStyle';
+
+interface ComparePopupState {
+  x: number;
+  y: number;
+  target: CompareElement;
+}
 
 const VISUAL_METHOD_LABEL: Record<VisualMethod, string> = {
   ai: 'AI-Provided Assets',
@@ -308,6 +316,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [targetAudience, setTargetAudience] = useState('');
   const [resultTab, setResultTab] = useState<ResultTab>('profiles');
   const [compareElement, setCompareElement] = useState<CompareElement>('primaryColors');
+  const [comparePopup, setComparePopup] = useState<ComparePopupState | null>(null);
   const [_compareDropdownOpen, _setCompareDropdownOpen] = useState(false);
   const [_selectedElementToCompare, _setSelectedElementToCompare] = useState<CompareElement | null>(null);
   const [showValidation, setShowValidation] = useState(false);
@@ -344,6 +353,36 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     setReportAnswer('');
     setBestVisualsByBrand({});
     setToast('Started a new search.');
+  };
+
+  const openComparePopup = (event: React.MouseEvent<HTMLElement>, target: CompareElement) => {
+    const clickedInteractiveElement = (event.target as HTMLElement | null)?.closest('a,button,input,textarea,select,label');
+    if (clickedInteractiveElement) {
+      return;
+    }
+
+    const popupWidth = 220;
+    const popupHeight = 46;
+    const padding = 12;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+
+    const x = Math.min(
+      Math.max(event.clientX + 10, padding),
+      Math.max(padding, viewportWidth - popupWidth - padding)
+    );
+    const y = Math.min(
+      Math.max(event.clientY + 10, padding),
+      Math.max(padding, viewportHeight - popupHeight - padding)
+    );
+
+    setComparePopup({ x, y, target });
+  };
+
+  const compareAcrossBrands = (target: CompareElement) => {
+    setCompareElement(target);
+    setResultTab('compare');
+    setComparePopup(null);
   };
 
   const loadSavedSearch = (saved: SavedDeepDiveSearch) => {
@@ -415,6 +454,33 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
       setSavedSearches([]);
     }
   }, []);
+
+  useEffect(() => {
+    if (!comparePopup) {
+      return;
+    }
+
+    const closePopup = () => setComparePopup(null);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closePopup();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    window.addEventListener('resize', closePopup);
+    window.addEventListener('scroll', closePopup, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('resize', closePopup);
+      window.removeEventListener('scroll', closePopup, true);
+    };
+  }, [comparePopup]);
+
+  useEffect(() => {
+    setComparePopup(null);
+  }, [resultTab, report]);
 
   useEffect(() => {
     return () => {
@@ -1364,23 +1430,17 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                     type="button"
                     onClick={exportToPPTX}
                     disabled={isExporting}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm transition-colors disabled:opacity-50"
-                    aria-label="Export to PowerPoint"
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-full text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm disabled:opacity-50"
                   >
-                    <Share2 className="w-4 h-4" />
-                    Export PPTX
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
+                    <Presentation className="w-4 h-4" /> PPTX <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
                   </button>
                   <button
                     type="button"
                     onClick={exportToPDF}
                     disabled={isExporting}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm transition-colors disabled:opacity-50"
-                    aria-label="Export to PDF"
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-full text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm disabled:opacity-50"
                   >
-                    <Share2 className="w-4 h-4" />
-                    Export PDF
-                    <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
+                    <FileText className="w-4 h-4" /> PDF <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
                   </button>
                 </div>
               </div>
@@ -1456,7 +1516,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   const logoFallbackChain = buildImageFallbackChain(logoUrl || '', profile.website).join('|');
 
                   const visualReferenceCardsSection = visuals ? (
-                    <div className="rounded-2xl border border-zinc-200 p-4">
+                    <div
+                      data-testid="compare-trigger-visual-reference"
+                      className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                      onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                    >
                       <div className="flex items-center justify-between gap-3 mb-3">
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 inline-flex items-center gap-2">
                           <ImageIcon className="w-4 h-4" /> Visual Reference Cards
@@ -1475,7 +1539,12 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               : 'w-full h-44 object-contain bg-white p-3 transition-all';
 
                           return (
-                            <figure key={cardKey} className="rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden hover:shadow-md transition-shadow relative">
+                            <figure
+                              key={cardKey}
+                              data-testid="compare-trigger-visual-card"
+                              className="rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden hover:shadow-md transition-shadow relative cursor-pointer"
+                              onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                            >
                               {failureState && (
                                 <span className="absolute top-2 right-2 z-10 inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-medium">
                                   Failed source: {failureState.lastSource}
@@ -1518,7 +1587,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   ) : null;
 
                   const logoSystemSection = (
-                    <div className="rounded-2xl border border-zinc-200 p-4">
+                    <div
+                      data-testid="compare-trigger-logo-system"
+                      className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                      onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                    >
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Logo System</h4>
                       {logoUrl ? (
                         <div className="mb-4 rounded-lg bg-zinc-50 p-3 flex items-center justify-center">
@@ -1541,7 +1614,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   );
 
                   const typographySection = (
-                    <div className="rounded-2xl border border-zinc-200 p-4">
+                    <div
+                      data-testid="compare-trigger-typography"
+                      className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                      onClick={(event) => openComparePopup(event, 'typography')}
+                    >
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
                         <Type className="w-4 h-4" /> Typography
                       </h4>
@@ -1556,7 +1633,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
                   const colorPaletteSection = (
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                      <div className="rounded-2xl border border-zinc-200 p-4">
+                      <div
+                        data-testid="compare-trigger-primary-colors"
+                        className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                        onClick={(event) => openComparePopup(event, 'primaryColors')}
+                      >
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
                           <Palette className="w-4 h-4" /> Primary Colors
                         </h4>
@@ -1566,7 +1647,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           <p className="text-sm text-zinc-500">No primary color values available.</p>
                         )}
                       </div>
-                      <div className="rounded-2xl border border-zinc-200 p-4">
+                      <div
+                        data-testid="compare-trigger-accent-colors"
+                        className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                        onClick={(event) => openComparePopup(event, 'accentColors')}
+                      >
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Accent Colors</h4>
                         {profile.colorPalette.secondaryAccentColors.length > 0 ? (
                           <ul className="space-y-2">{profile.colorPalette.secondaryAccentColors.map(renderColorSwatch)}</ul>
@@ -1574,7 +1659,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           <p className="text-sm text-zinc-500">No accent color values available.</p>
                         )}
                       </div>
-                      <div className="rounded-2xl border border-zinc-200 p-4">
+                      <div
+                        data-testid="compare-trigger-neutrals"
+                        className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                        onClick={(event) => openComparePopup(event, 'neutrals')}
+                      >
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Neutrals</h4>
                         {profile.colorPalette.neutrals.length > 0 ? (
                           <ul className="space-y-2">{profile.colorPalette.neutrals.map(renderColorSwatch)}</ul>
@@ -1586,7 +1675,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   );
 
                   const supportingVisualElementsSection = (
-                    <div className="rounded-2xl border border-zinc-200 p-4">
+                    <div
+                      data-testid="compare-trigger-supporting-visuals"
+                      className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                      onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                    >
                       <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
                         <ImageIcon className="w-4 h-4" /> Supporting Visual Elements
                       </h4>
@@ -1617,11 +1710,19 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
                   const assessmentAndSourcesSection = (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="rounded-2xl border border-zinc-200 p-4">
+                      <div
+                        data-testid="compare-trigger-distinctiveness"
+                        className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                        onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                      >
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Distinctiveness</h4>
                         <p className="text-sm text-zinc-700">{profile.distinctivenessAssessment}</p>
                       </div>
-                      <div className="rounded-2xl border border-zinc-200 p-4">
+                      <div
+                        data-testid="compare-trigger-sources"
+                        className="rounded-2xl border border-zinc-200 p-4 cursor-pointer hover:border-indigo-300 transition-colors"
+                        onClick={(event) => openComparePopup(event, 'imageryStyle')}
+                      >
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Per-Brand Sources</h4>
                         <div className="flex flex-wrap gap-2">
                           {profile.sources.map((source, idx) => (
@@ -1749,6 +1850,36 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
               </>
             )}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {comparePopup && resultTab === 'profiles' && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40"
+              onClick={() => setComparePopup(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: -4 }}
+              transition={{ duration: 0.16 }}
+              className="fixed z-50"
+              style={{ left: comparePopup.x, top: comparePopup.y }}
+            >
+              <button
+                type="button"
+                onClick={() => compareAcrossBrands(comparePopup.target)}
+                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-lg hover:bg-zinc-50"
+              >
+                <Share2 className="w-4 h-4" /> Compare Across Brands
+              </button>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

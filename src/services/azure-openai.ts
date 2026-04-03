@@ -276,6 +276,12 @@ Uncertainty protocol (must follow):
 - Do not present speculative statements as verified facts.
 `;
 
+const BRAND_UNCERTAINTY_PROTOCOL = `
+Uncertainty protocol (must follow):
+- Explicitly distinguish known data, inferred patterns, and speculative trends.
+- Do not present speculative statements as verified facts.
+`;
+
 const ANALOGICAL_REASONING_PROTOCOL = `
 Analogical reasoning protocol:
 - Connect present signals to at least one historical or cross-industry parallel.
@@ -394,10 +400,13 @@ function updateSessionBrief(mode: SessionMode, payload: unknown): void {
 }
 
 function composeSystemPrompt(baseInstruction: string, mode: SessionMode): string {
+  const uncertaintyProtocol = (mode === 'brand' || mode === 'brand-qa')
+    ? BRAND_UNCERTAINTY_PROTOCOL
+    : UNCERTAINTY_PROTOCOL;
   return [
     baseInstruction,
     RESEARCH_ACCURACY_PROTOCOL,
-    UNCERTAINTY_PROTOCOL,
+    uncertaintyProtocol,
     ANALOGICAL_REASONING_PROTOCOL,
     getDynamicContextBlock(),
     getSessionBrief(mode),
@@ -660,8 +669,20 @@ function isOfficialSourceForWebsite(sourceUrl?: string | null, websiteUrl?: stri
 }
 
 function sanitizeBrandDeepDiveReport(report: BrandDeepDiveReport): BrandDeepDiveReport {
+  const stripLabels = (text: string): string =>
+    text
+      .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE)\]\s*/gi, '')
+      .replace(/\b(KNOWN|INFERRED|INFERED|SPECULATIVE)\b\s*[:\-]?\s*/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  const stripListLabels = (items: string[]): string[] => items.map(stripLabels);
+
   return {
     ...report,
+    analysisObjective: stripLabels(report.analysisObjective || ''),
+    ecosystemMethod: stripLabels(report.ecosystemMethod || ''),
+    crossBrandReadout: stripListLabels(report.crossBrandReadout || []),
+    strategicRecommendations: stripListLabels(report.strategicRecommendations || []),
     sources: sanitizeSources(report.sources),
     brandProfiles: (report.brandProfiles || []).map((profile) => {
       const normalizedWebsite = normalizeHttpsUrl(profile.website) || profile.website || null;
@@ -703,15 +724,39 @@ function sanitizeBrandDeepDiveReport(report: BrandDeepDiveReport): BrandDeepDive
             return { title: (visual.title || 'Visual').trim(), url };
           })
           .filter((visual): visual is { title: string; url: string } => Boolean(visual)),
+        logo: {
+          mainLogo: stripLabels(profile.logo?.mainLogo || ''),
+          wordmarkLogotype: stripLabels(profile.logo?.wordmarkLogotype || ''),
+          logoVariations: stripListLabels(profile.logo?.logoVariations || []),
+          symbolsIcons: stripListLabels(profile.logo?.symbolsIcons || []),
+        },
+        typography: {
+          fontFamilies: stripListLabels(profile.typography?.fontFamilies || []),
+          hierarchy: {
+            h1: stripLabels(profile.typography?.hierarchy?.h1 || ''),
+            h2: stripLabels(profile.typography?.hierarchy?.h2 || ''),
+            body: stripLabels(profile.typography?.hierarchy?.body || ''),
+          },
+          usageRules: stripListLabels(profile.typography?.usageRules || []),
+        },
+        supportingVisualElements: {
+          imageryStyle: stripListLabels(profile.supportingVisualElements?.imageryStyle || []),
+          icons: stripListLabels(profile.supportingVisualElements?.icons || []),
+          patternsTextures: stripListLabels(profile.supportingVisualElements?.patternsTextures || []),
+          shapes: stripListLabels(profile.supportingVisualElements?.shapes || []),
+          dataVisualization: stripListLabels(profile.supportingVisualElements?.dataVisualization || []),
+        },
         colorPalette: {
           primaryColors: verifiedPrimaryColors,
           secondaryAccentColors: verifiedAccentColors,
           neutrals: verifiedNeutrals,
         },
-        consistencyAssessment:
+        consistencyAssessment: stripLabels(
           hasOfficialBrandSource || !hasAnyColorData
             ? consistencyAssessment
-            : `${consistencyAssessment} ${verificationSuffix}`,
+            : `${consistencyAssessment} ${verificationSuffix}`
+        ),
+        distinctivenessAssessment: stripLabels(profile.distinctivenessAssessment || ''),
         sources: profileSources,
       };
     }),
