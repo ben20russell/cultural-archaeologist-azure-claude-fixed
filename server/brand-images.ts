@@ -1,287 +1,212 @@
-/**
- * Brand image extraction utility for the Cultural Archeologist – Brand Deep Dive.
- *
- * extractBrandImages(domain)
- *   1. Scrapes the brand's website with cheerio to find a website-native logo URL.
- *   2. Scrapes the brand's website with cheerio to find the best hero/OG image.
- *      Priority: og:image → twitter:image → largest <img> (by declared dimensions or
- *      heuristic size scoring) → first non-tracking-pixel <img src>.
- *   3. Resolves relative URLs against the site origin.
- *
- * Returns { logoUrl, heroImageUrl }.
- */
-
 import { load as cheerioLoad } from 'cheerio';
 
 export interface BrandImagesResult {
-  logoUrl: string;
+  logoUrl: string | null;
   heroImageUrl: string | null;
 }
 
-// Minimum dimension (px) for a candidate image to be considered a real asset.
-const MIN_DIMENSION = 100;
-// Fetch timeout in ms.
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 10000;
+const LOGO_HINT = /logo/i;
 
-/**
- * Patterns that strongly indicate a decorative / tracking pixel rather than a
- * genuine hero image.
- */
-const NOISE_PATTERNS =
-  /\b(pixel|tracker|tracking|beacon|spacer|blank|1x1|transparent|placeholder|avatar|gravatar|icon|favicon|sprite|badge)\b/i;
-
-const LOGO_HINT_PATTERNS = /\b(logo|logotype|wordmark|brandmark|brand\s*mark|mark)\b/i;
-
-/**
- * Attempt to fetch the raw HTML of a URL.  Returns null (rather than throwing)
- * on non-2xx responses, network errors, or timeouts so callers can handle
- * gracefully.
- */
-async function fetchHtml(url: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'User-Agent':
-          'Mozilla/5.0 (compatible; CulturalArcheologistBot/1.0; +https://github.com/cultural-archeologist)',
-      },
-      redirect: 'follow',
-    });
-
-    if (!response.ok) return null;
-
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('html')) return null;
-
-    return await response.text();
-  } catch {
-    // AbortError (timeout), DNS failure, TLS error, etc.
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+function isFaviconLikeUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /favicon|apple-touch-icon|android-chrome|mstile|mask-icon/i.test(url);
 }
 
-/**
- * Make a potentially relative URL absolute given the root origin of the page.
- */
-function resolveUrl(raw: string | undefined | null, baseOrigin: string): string | null {
-  if (!raw) return null;
-
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  // Already absolute.
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-
-  // Protocol-relative.
-  if (trimmed.startsWith('//')) return `https:${trimmed}`;
-
-  // Root-relative or relative path.
-  return `${baseOrigin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
-}
-
-/**
- * Score an image URL/element heuristically.  Higher = more likely to be a
- * meaningful hero image.
- */
-function scoreCandidate(
-  src: string,
-  width: number | null,
-  height: number | null,
-): number {
-  if (NOISE_PATTERNS.test(src)) return -1;
-
-  const area = width !== null && height !== null ? width * height : 0;
-  const sizeBonus = area > 0 ? Math.log(area) : 0;
-
-  const heroBonus =
-    /\b(hero|banner|cover|header|feature|og[_-]?image|social|preview)\b/i.test(src) ? 5 : 0;
-
-  // Prefer common image formats.
-  const formatBonus = /\.(jpe?g|png|webp|avif)(\?|$)/i.test(src) ? 2 : 0;
-
-  return sizeBonus + heroBonus + formatBonus;
-}
-
-function scoreLogoCandidate(src: string, width: number | null, height: number | null): number {
-  const lower = src.toLowerCase();
-  const logoHint = LOGO_HINT_PATTERNS.test(lower) ? 8 : 0;
-  const spritePenalty = /\b(sprite|badge|avatar|gravatar|pixel|tracking|tracker)\b/i.test(lower) ? -20 : 0;
-
-  const area = width !== null && height !== null ? width * height : 0;
-  const areaScore = area > 0 ? Math.min(12, Math.log(area)) : 2;
-  const aspectRatio = width && height ? width / height : null;
-  const ratioBonus = aspectRatio && aspectRatio >= 1.2 && aspectRatio <= 8 ? 4 : 0;
-
-  return logoHint + areaScore + ratioBonus + spritePenalty;
-}
-
-function extractLogoFromHtml(html: string, baseOrigin: string): string | null {
-  const $ = cheerioLoad(html);
-
-  // Priority 1: explicit logo metadata
-  const metadataCandidates = [
-    $('meta[property="og:logo"]').first().attr('content'),
-    $('meta[name="logo"]').first().attr('content'),
-    $('meta[itemprop="logo"]').first().attr('content'),
-  ];
-
-  for (const candidate of metadataCandidates) {
-    const resolved = resolveUrl(candidate, baseOrigin);
-    if (resolved) return resolved;
-  }
-
-  // Priority 2: icon/link tags from site itself
-  const linkCandidates = [
-    'link[rel="apple-touch-icon"]',
-    'link[rel="apple-touch-icon-precomposed"]',
-    'link[rel="icon"]',
-    'link[rel="shortcut icon"]',
-    'link[rel="mask-icon"]',
-  ];
-
-  for (const selector of linkCandidates) {
-    const href = $(selector).first().attr('href');
-    const resolved = resolveUrl(href, baseOrigin);
-    if (resolved) return resolved;
-  }
-
-  // Priority 3: best logo-like <img>
-  let bestSrc: string | null = null;
-  let bestScore = -Infinity;
-
-  $('img').each((_i, el) => {
-    const src = resolveUrl($(el).attr('src') ?? $(el).attr('data-src'), baseOrigin);
-    if (!src) return;
-
-    const context = `${src} ${$(el).attr('alt') || ''} ${$(el).attr('class') || ''}`;
-    if (!LOGO_HINT_PATTERNS.test(context)) return;
-
-    const widthAttr = parseInt($(el).attr('width') ?? '0', 10) || null;
-    const heightAttr = parseInt($(el).attr('height') ?? '0', 10) || null;
-    const score = scoreLogoCandidate(src, widthAttr, heightAttr);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestSrc = src;
-    }
-  });
-
-  if (bestSrc) return bestSrc;
-
-  // Priority 4: common on-site logo/icon paths
-  const commonLogoPaths = [
-    '/logo.svg',
-    '/logo.png',
-    '/logo.webp',
-    '/assets/logo.svg',
-    '/assets/logo.png',
-    '/images/logo.svg',
-    '/images/logo.png',
-    '/img/logo.svg',
-    '/img/logo.png',
-    '/brand/logo.svg',
-    '/favicon.svg',
-    '/favicon.png',
-    '/favicon.ico',
-    '/apple-touch-icon.png',
-  ];
-
-  return `${baseOrigin}${commonLogoPaths[0]}`;
-}
-
-/**
- * Extract hero image candidate from parsed HTML.
- * Returns the absolute URL of the best candidate, or null.
- */
-function extractHeroFromHtml(html: string, baseOrigin: string): string | null {
-  const $ = cheerioLoad(html);
-
-  // ── Priority 1: Open Graph image ────────────────────────────────────────────
-  const ogImage = $('meta[property="og:image"]').first().attr('content');
-  if (ogImage) {
-    const resolved = resolveUrl(ogImage, baseOrigin);
-    if (resolved) return resolved;
-  }
-
-  // ── Priority 2: Twitter Card image ───────────────────────────────────────────
-  const twitterImage =
-    $('meta[name="twitter:image"]').first().attr('content') ??
-    $('meta[name="twitter:image:src"]').first().attr('content');
-  if (twitterImage) {
-    const resolved = resolveUrl(twitterImage, baseOrigin);
-    if (resolved) return resolved;
-  }
-
-  // ── Priority 3: Best <img> on the page ───────────────────────────────────────
-  let bestSrc: string | null = null;
-  let bestScore = -Infinity;
-
-  $('img').each((_i, el) => {
-    const src = resolveUrl($(el).attr('src') ?? $(el).attr('data-src'), baseOrigin);
-    if (!src) return;
-
-    const widthAttr = parseInt($(el).attr('width') ?? '0', 10) || null;
-    const heightAttr = parseInt($(el).attr('height') ?? '0', 10) || null;
-
-    // Skip obvious small assets.
-    if (widthAttr !== null && widthAttr < MIN_DIMENSION) return;
-    if (heightAttr !== null && heightAttr < MIN_DIMENSION) return;
-
-    const score = scoreCandidate(src, widthAttr, heightAttr);
-    if (score < 0) return; // noise
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestSrc = src;
-    }
-  });
-
-  return bestSrc;
-}
-
-/**
- * Given a company website URL (or bare domain), return:
- *  - `logoUrl`      – Website-native logo/icon URL
- *  - `heroImageUrl` – Best hero/OG image found on the page, or null
- */
-export async function extractBrandImages(domain: string): Promise<BrandImagesResult> {
-  // ── Normalise to a usable URL ────────────────────────────────────────────────
-  let siteUrl: URL;
-  try {
-    const withProtocol = /^https?:\/\//i.test(domain.trim())
-      ? domain.trim()
-      : `https://${domain.trim()}`;
-    siteUrl = new URL(withProtocol);
-  } catch {
-    throw new Error(`Invalid domain: "${domain}"`);
-  }
-
-  if (siteUrl.protocol !== 'http:' && siteUrl.protocol !== 'https:') {
+function normalizeDomainToUrl(domain: string): URL {
+  const candidate = (domain || '').trim();
+  const withProtocol = /^https?:\/\//i.test(candidate) ? candidate : `https://${candidate}`;
+  const url = new URL(withProtocol);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error('Only http/https domains are supported.');
   }
+  return url;
+}
 
-  const baseOrigin = siteUrl.origin;
+function resolveSecureAbsoluteUrl(rawUrl: string | null | undefined, baseUrl: URL): string | null {
+  if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
 
-  // ── Hero image via scraping ──────────────────────────────────────────────────
-  const html = await fetchHtml(siteUrl.toString());
+  try {
+    if (trimmed.startsWith('//')) {
+      return new URL(`https:${trimmed}`).toString();
+    }
 
-  if (!html) {
-    // Fall back to on-site favicon path when HTML cannot be scraped.
-    return {
-      logoUrl: `${baseOrigin}/favicon.ico`,
-      heroImageUrl: null,
-    };
+    const absolute = new URL(trimmed, baseUrl);
+    if (absolute.protocol !== 'http:' && absolute.protocol !== 'https:') return null;
+    if (absolute.protocol === 'http:') {
+      absolute.protocol = 'https:';
+    }
+    return absolute.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchHtml(url: URL): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url.toString(), {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (compatible; CulturalArcheologistAssetBot/1.0)',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch HTML (${response.status})`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) {
+      throw new Error(`Unexpected content type: ${contentType || 'unknown'}`);
+    }
+
+    return await response.text();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown network error';
+    throw new Error(`HTML request failed for ${url.hostname}: ${message}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function parseJsonLdBlocks($: any): Array<Record<string, any>> {
+  const nodes = $('script[type="application/ld+json"]').toArray();
+  const output: Array<Record<string, any>> = [];
+
+  for (const node of nodes) {
+    const raw = $(node).contents().text().trim();
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => {
+          if (item && typeof item === 'object') output.push(item as Record<string, any>);
+        });
+        continue;
+      }
+
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray((parsed as any)['@graph'])) {
+          (parsed as any)['@graph'].forEach((item: unknown) => {
+            if (item && typeof item === 'object') output.push(item as Record<string, any>);
+          });
+        }
+        output.push(parsed as Record<string, any>);
+      }
+    } catch {
+      // Keep scraping resilient: ignore malformed JSON-LD blocks.
+    }
   }
 
-  const logoUrl = extractLogoFromHtml(html, baseOrigin) || `${baseOrigin}/favicon.ico`;
-  const heroImageUrl = extractHeroFromHtml(html, baseOrigin);
+  return output;
+}
 
-  return { logoUrl, heroImageUrl };
+function isOrgLikeType(rawType: unknown): boolean {
+  if (!rawType) return false;
+  if (Array.isArray(rawType)) return rawType.some((t) => /organization|brand/i.test(String(t)));
+  return /organization|brand/i.test(String(rawType));
+}
+
+function extractImageValue(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = extractImageValue(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, any>;
+    return obj.url || obj.contentUrl || obj['@id'] || null;
+  }
+  return null;
+}
+
+function extractFromJsonLdOrg(blocks: Array<Record<string, any>>, key: 'logo' | 'image'): string | null {
+  for (const block of blocks) {
+    if (!isOrgLikeType(block['@type'])) continue;
+    const candidate = extractImageValue(block[key]);
+    if (candidate) return candidate;
+  }
+  return null;
+}
+
+function extractLogoUrl($: any, baseUrl: URL): string | null {
+  // Priority A: JSON-LD Organization/Brand logo
+  const jsonLd = parseJsonLdBlocks($);
+  const jsonLdLogo = resolveSecureAbsoluteUrl(extractFromJsonLdOrg(jsonLd, 'logo'), baseUrl);
+  if (jsonLdLogo) return jsonLdLogo;
+
+  // Priority B: Meta og:logo
+  const ogLogo = resolveSecureAbsoluteUrl($('meta[property="og:logo"]').first().attr('content'), baseUrl);
+  if (ogLogo) return ogLogo;
+
+  // Priority C: header/nav img with logo-like signal in src/alt/class
+  const headerOrNavLogo = $('header img, nav img')
+    .toArray()
+    .map((el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src') || '';
+      const alt = $(el).attr('alt') || '';
+      const cls = $(el).attr('class') || '';
+      const ctx = `${src} ${alt} ${cls}`;
+      if (!LOGO_HINT.test(ctx)) return null;
+      return resolveSecureAbsoluteUrl(src, baseUrl);
+    })
+    .find((url): url is string => Boolean(url));
+
+  if (headerOrNavLogo) return headerOrNavLogo;
+
+  // Priority D: High-res icons as secondary icon evidence only.
+  const appleTouch = resolveSecureAbsoluteUrl($('link[rel="apple-touch-icon"]').first().attr('href'), baseUrl);
+  if (appleTouch) return appleTouch;
+
+  const icon192 = resolveSecureAbsoluteUrl($('link[rel="icon"][sizes="192x192"]').first().attr('href'), baseUrl);
+  if (icon192) return icon192;
+
+  // Priority E: Clearbit as final fallback only
+  return `https://logo.clearbit.com/${baseUrl.hostname}`;
+}
+
+function extractHeroImageUrl($: any, baseUrl: URL): string | null {
+  // Priority A: Open Graph image
+  const ogSecure = resolveSecureAbsoluteUrl($('meta[property="og:image:secure_url"]').first().attr('content'), baseUrl);
+  if (ogSecure) return ogSecure;
+
+  const ogImage = resolveSecureAbsoluteUrl($('meta[property="og:image"]').first().attr('content'), baseUrl);
+  if (ogImage) return ogImage;
+
+  // Priority B: JSON-LD Organization/Brand image
+  const jsonLd = parseJsonLdBlocks($);
+  return resolveSecureAbsoluteUrl(extractFromJsonLdOrg(jsonLd, 'image'), baseUrl);
+}
+
+export async function extractPreciseBrandAssets(domain: string): Promise<BrandImagesResult> {
+  try {
+    const baseUrl = normalizeDomainToUrl(domain);
+    const html = await fetchHtml(baseUrl);
+    const $ = cheerioLoad(html);
+
+    return {
+      logoUrl: extractLogoUrl($, baseUrl),
+      heroImageUrl: extractHeroImageUrl($, baseUrl),
+    };
+  } catch {
+    // Fail-safe return so callers can proceed gracefully.
+    return { logoUrl: null, heroImageUrl: null };
+  }
+}
+
+// Backward-compatible export used by current Brand Deep Dive server endpoint.
+export async function extractBrandImages(domain: string): Promise<BrandImagesResult> {
+  return extractPreciseBrandAssets(domain);
 }

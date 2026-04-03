@@ -150,7 +150,7 @@ function getOriginFromUrl(url?: string | null): string | null {
 function buildDeterministicLogoUrl(website?: string | null): string | null {
   const origin = getOriginFromUrl(website);
   if (!origin) return null;
-  return `${origin}/favicon.ico`;
+  return `${origin}/logo.svg`;
 }
 
 function buildLargeLogoCandidateUrls(website?: string | null): string[] {
@@ -166,19 +166,19 @@ function buildLargeLogoCandidateUrls(website?: string | null): string[] {
       origin ? { label: 'Wordmark PNG', url: `${origin}/wordmark.png` } : null,
       origin ? { label: 'Brand Mark', url: `${origin}/brandmark.svg` } : null,
       origin ? { label: 'Brand Mark PNG', url: `${origin}/brandmark.png` } : null,
-      origin ? { label: 'Apple Touch Icon', url: `${origin}/apple-touch-icon.png` } : null,
-      origin ? { label: 'Apple Touch Icon Precomposed', url: `${origin}/apple-touch-icon-precomposed.png` } : null,
-      origin ? { label: 'Android Chrome Icon', url: `${origin}/android-chrome-512x512.png` } : null,
-      origin ? { label: 'Android Chrome Icon Alt', url: `${origin}/android-chrome-192x192.png` } : null,
-      origin ? { label: 'Favicon SVG', url: `${origin}/favicon.svg` } : null,
-      origin ? { label: 'Favicon PNG', url: `${origin}/favicon.png` } : null,
-      deterministicLogo ? { label: 'Favicon ICO', url: deterministicLogo } : null,
       origin ? { label: 'Site Logo', url: `${origin}/logo.png` } : null,
       origin ? { label: 'Site Logo SVG', url: `${origin}/logo.svg` } : null,
       origin ? { label: 'Site Logo Alt', url: `${origin}/assets/logo.png` } : null,
       origin ? { label: 'Site Logo Alt SVG', url: `${origin}/assets/logo.svg` } : null,
       origin ? { label: 'Site Logo Image', url: `${origin}/images/logo.png` } : null,
       origin ? { label: 'Site Logo Image SVG', url: `${origin}/images/logo.svg` } : null,
+      origin ? { label: 'Apple Touch Icon', url: `${origin}/apple-touch-icon.png` } : null,
+      origin ? { label: 'Apple Touch Icon Precomposed', url: `${origin}/apple-touch-icon-precomposed.png` } : null,
+      origin ? { label: 'Android Chrome Icon', url: `${origin}/android-chrome-512x512.png` } : null,
+      origin ? { label: 'Android Chrome Icon Alt', url: `${origin}/android-chrome-192x192.png` } : null,
+      origin ? { label: 'Favicon SVG', url: `${origin}/favicon.svg` } : null,
+      origin ? { label: 'Favicon PNG', url: `${origin}/favicon.png` } : null,
+      deterministicLogo ? { label: 'Fallback Logo Asset', url: deterministicLogo } : null,
     ].filter((card): card is BrandVisualCard => Boolean(card))
   ).map((card) => card.url);
 }
