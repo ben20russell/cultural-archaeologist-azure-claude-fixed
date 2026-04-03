@@ -16,8 +16,6 @@ type SubmitState = {
 
 export function FeedbackChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitState, setSubmitState] = useState<SubmitState>({ type: 'idle', message: '' });
@@ -49,8 +47,6 @@ export function FeedbackChatWidget() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
           message: trimmedMessage,
           pageUrl: window.location.href,
         }),
@@ -67,8 +63,6 @@ export function FeedbackChatWidget() {
 
       setSubmitState({ type: 'success', message: successMessage });
       setMessage('');
-      setName('');
-      setEmail('');
     } catch (error) {
       const errText = error instanceof Error ? error.message : 'Failed to submit feedback.';
       setSubmitState({ type: 'error', message: errText });
@@ -104,37 +98,6 @@ export function FeedbackChatWidget() {
             </header>
 
             <form onSubmit={handleSubmit} className="space-y-3 px-4 py-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="text-xs font-medium text-zinc-600">
-                  Name
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => {
-                      resetStateForNewAttempt();
-                      setName(e.target.value);
-                    }}
-                    maxLength={120}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                    placeholder="Your name"
-                  />
-                </label>
-                <label className="text-xs font-medium text-zinc-600">
-                  Email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      resetStateForNewAttempt();
-                      setEmail(e.target.value);
-                    }}
-                    maxLength={254}
-                    className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                    placeholder="you@company.com"
-                  />
-                </label>
-              </div>
-
               <label className="block text-xs font-medium text-zinc-600">
                 Message
                 <textarea
