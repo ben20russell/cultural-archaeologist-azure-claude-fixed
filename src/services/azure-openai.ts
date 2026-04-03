@@ -264,6 +264,331 @@ Accuracy protocol (must follow):
 - Ensure every strategic claim is grounded in observable signals from reliable sources.
 `;
 
+const UNCERTAINTY_PROTOCOL = `
+Uncertainty protocol (must follow):
+- Explicitly distinguish known data, inferred patterns, and speculative trends.
+- Use labels in narrative fields where appropriate: [KNOWN], [INFERRED], [SPECULATIVE].
+- Do not present speculative statements as verified facts.
+`;
+
+const ANALOGICAL_REASONING_PROTOCOL = `
+Analogical reasoning protocol:
+- Connect present signals to at least one historical or cross-industry parallel.
+- Explain why the analogy is relevant and where it breaks.
+`;
+
+type SessionMode = 'cultural' | 'brand' | 'matrix-qa' | 'brand-qa';
+type OutputType = 'json-metadata' | 'analysis' | 'creative';
+
+const sessionResearchBrief = new Map<SessionMode, string>();
+
+const SubQueryPlanSchema = z.object({
+  queries: z.array(z.string()).min(4).max(5),
+});
+
+const EvidenceItemSchema = z.object({
+  query: z.string(),
+  title: z.string(),
+  url: z.string(),
+  publishedAt: z.string().nullable(),
+  summary: z.string(),
+  sourceType: z.enum(['authoritative', 'mainstream', 'behavioral', 'community', 'unknown']),
+});
+
+const EvidenceBundleSchema = z.object({
+  evidence: z.array(EvidenceItemSchema),
+});
+
+const ThinnessReviewSchema = z.object({
+  isThin: z.boolean(),
+  reason: z.string(),
+});
+
+const DevilsAdvocateSchema = z.object({
+  counterArgument: z.string(),
+  keyWeaknesses: z.array(z.string()),
+});
+
+const QUARTERLY_MACRO_SUMMARY: Record<string, string> = {
+  Q1: 'Planning cycles reset after year-end, budget certainty improves, and consumers often rebalance spending after holiday peaks.',
+  Q2: 'Execution pressure increases as teams operationalize annual plans, with stronger focus on conversion efficiency and channel performance.',
+  Q3: 'Late-year strategy shaping begins; brand teams test narratives and differentiation before peak seasonal competition.',
+  Q4: 'Peak commercial intensity compresses attention and pricing dynamics; signal velocity rises while noise and promotional distortion increase.',
+};
+
+const AUTHORITATIVE_DOMAIN_PATTERNS = [
+  /\.(gov|edu)(\.|$)/i,
+  /statista\.com$/i,
+  /mckinsey\.com$/i,
+  /deloitte\.com$/i,
+  /gartner\.com$/i,
+  /forrester\.com$/i,
+  /nielsen\.com$/i,
+  /kantar\.com$/i,
+  /adweek\.com$/i,
+  /wsj\.com$/i,
+  /ft\.com$/i,
+  /reuters\.com$/i,
+  /bloomberg\.com$/i,
+];
+
+function outputTemperature(outputType: OutputType): number {
+  if (outputType === 'json-metadata') return 0.2;
+  if (outputType === 'analysis') return 0.7;
+  return 0.9;
+}
+
+function getDynamicContextBlock(): string {
+  const now = new Date();
+  const monthLabel = now.toLocaleString('en-US', { month: 'long' });
+  const yearLabel = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const quarter = month <= 3 ? 'Q1' : month <= 6 ? 'Q2' : month <= 9 ? 'Q3' : 'Q4';
+  const macro = QUARTERLY_MACRO_SUMMARY[quarter] || QUARTERLY_MACRO_SUMMARY.Q1;
+
+  return `Dynamic context:\n- Current month/year: ${monthLabel} ${yearLabel}\n- Current quarter: ${quarter}\n- Quarterly macro environment: ${macro}`;
+}
+
+function getSessionBrief(mode: SessionMode): string {
+  const brief = sessionResearchBrief.get(mode)?.trim();
+  if (!brief) return 'Session Research Brief: (empty)';
+  return `Session Research Brief:\n${brief}`;
+}
+
+function summarizeForBrief(payload: unknown): string {
+  try {
+    if (typeof payload !== 'object' || payload === null) {
+      return String(payload).slice(0, 320);
+    }
+
+    const candidate = payload as any;
+    if (Array.isArray(candidate.brandProfiles)) {
+      const names = candidate.brandProfiles.map((p: any) => p.brandName).filter(Boolean).slice(0, 6).join(', ');
+      return `Brand set analyzed: ${names || 'n/a'}. Recommendations: ${(candidate.strategicRecommendations || []).slice(0, 2).join(' | ')}`.slice(0, 500);
+    }
+
+    if (Array.isArray(candidate.moments) && Array.isArray(candidate.beliefs)) {
+      return `Cultural matrix generated with ${candidate.moments.length} moments, ${candidate.beliefs.length} beliefs, and ${Array.isArray(candidate.sources) ? candidate.sources.length : 0} sources.`;
+    }
+
+    if (Array.isArray(candidate.reports)) {
+      return `Deep dive batch generated for ${candidate.reports.length} insights.`;
+    }
+
+    if (typeof candidate.answer === 'string') {
+      return `Answered prompt: ${candidate.answer.slice(0, 260)}`;
+    }
+
+    return JSON.stringify(candidate).slice(0, 500);
+  } catch {
+    return 'Summary unavailable.';
+  }
+}
+
+function updateSessionBrief(mode: SessionMode, payload: unknown): void {
+  const existing = sessionResearchBrief.get(mode) || '';
+  const timestamp = new Date().toISOString();
+  const nextLine = `- [${timestamp}] ${summarizeForBrief(payload)}`;
+  const merged = `${existing}\n${nextLine}`.trim();
+  sessionResearchBrief.set(mode, merged.slice(-4000));
+}
+
+function composeSystemPrompt(baseInstruction: string, mode: SessionMode): string {
+  return [
+    baseInstruction,
+    RESEARCH_ACCURACY_PROTOCOL,
+    UNCERTAINTY_PROTOCOL,
+    ANALOGICAL_REASONING_PROTOCOL,
+    getDynamicContextBlock(),
+    getSessionBrief(mode),
+  ].join('\n\n');
+}
+
+function monthsOld(dateValue?: string | null): number | null {
+  if (!dateValue) return null;
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const now = new Date();
+  const yearDiff = now.getFullYear() - parsed.getFullYear();
+  const monthDiff = now.getMonth() - parsed.getMonth();
+  return yearDiff * 12 + monthDiff;
+}
+
+function scoreEvidenceDomain(url: string): { quality: 'authoritative' | 'mainstream' | 'behavioral' | 'community' | 'unknown'; weight: number } {
+  const hostname = getHostname(url);
+  if (!hostname) return { quality: 'unknown', weight: 0.5 };
+  if (/reddit\.com$/i.test(hostname)) return { quality: 'behavioral', weight: 0.85 };
+  if (AUTHORITATIVE_DOMAIN_PATTERNS.some((pattern) => pattern.test(hostname))) return { quality: 'authoritative', weight: 1.3 };
+  if (/quora\.com$|discord\.com$|facebook\.com$|x\.com$|twitter\.com$/i.test(hostname)) return { quality: 'community', weight: 0.7 };
+  return { quality: 'mainstream', weight: 1.0 };
+}
+
+function filterAndWeightEvidence(items: z.infer<typeof EvidenceItemSchema>[]): string {
+  const scored = items
+    .map((item) => {
+      const domainScore = scoreEvidenceDomain(item.url);
+      const ageMonths = monthsOld(item.publishedAt);
+      const stale12Penalty = ageMonths !== null && ageMonths > 12 ? 0.55 : 1;
+      const stale18Flag = ageMonths !== null && ageMonths > 18;
+      const weight = domainScore.weight * stale12Penalty;
+
+      return {
+        ...item,
+        sourceType: domainScore.quality,
+        weight,
+        stale18Flag,
+        ageMonths,
+      };
+    })
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 18);
+
+  return scored
+    .map((item, idx) => {
+      const staleTag = item.stale18Flag ? ' [POTENTIALLY STALE >18M]' : '';
+      const dateTag = item.publishedAt ? `date=${item.publishedAt}` : 'date=unknown';
+      return `${idx + 1}. (${item.sourceType}; weight=${item.weight.toFixed(2)}; ${dateTag}) ${item.title} | ${item.url}${staleTag}\n   summary: ${item.summary}`;
+    })
+    .join('\n');
+}
+
+async function runStructuredCall<T extends z.ZodTypeAny>(params: {
+  schema: T;
+  schemaName: string;
+  messages: ChatCompletionMessageParam[];
+  mode: SessionMode;
+  outputType: OutputType;
+  qualityGate?: (parsed: z.infer<T>) => boolean;
+  maxRetries?: number;
+}): Promise<z.infer<T>> {
+  const maxRetries = params.maxRetries ?? 2;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const response = await getAzureAI().chat.completions.create({
+        model: getDeploymentName(),
+        temperature: outputTemperature(params.outputType),
+        messages: params.messages,
+        response_format: zodResponseFormat(params.schema, params.schemaName),
+      });
+
+      const text = response.choices[0].message.content || '{}';
+      const parsed = params.schema.parse(JSON.parse(text));
+
+      if (params.qualityGate && !params.qualityGate(parsed)) {
+        if (attempt < maxRetries) {
+          continue;
+        }
+      }
+
+      updateSessionBrief(params.mode, parsed);
+      return parsed;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxRetries) {
+        break;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Structured call failed after retries.');
+}
+
+async function createTargetedSubQueries(topic: string, mode: SessionMode): Promise<string[]> {
+  const plan = await runStructuredCall({
+    schema: SubQueryPlanSchema,
+    schemaName: 'sub_query_plan',
+    mode,
+    outputType: 'json-metadata',
+    messages: [
+      {
+        role: 'system',
+        content: composeSystemPrompt('Generate 4-5 targeted sub-queries for multi-angle evidence gathering.', mode),
+      },
+      {
+        role: 'user',
+        content: `Topic:\n${topic}\n\nReturn 4-5 concise sub-queries that cover macro context, consumer behavior, category competitors, and weak signals.`,
+      },
+    ],
+  });
+
+  return plan.queries.map((query) => query.trim()).filter(Boolean).slice(0, 5);
+}
+
+async function gatherEvidenceForTopic(topic: string, mode: SessionMode): Promise<string> {
+  const queries = await createTargetedSubQueries(topic, mode);
+  if (!queries.length) return 'Evidence digest unavailable.';
+
+  const evidence = await runStructuredCall({
+    schema: EvidenceBundleSchema,
+    schemaName: 'evidence_bundle',
+    mode,
+    outputType: 'analysis',
+    messages: [
+      {
+        role: 'system',
+        content: composeSystemPrompt('Collect evidence across queries and classify source quality.', mode),
+      },
+      {
+        role: 'user',
+        content: `Topic:\n${topic}\n\nTargeted sub-queries:\n${queries.map((query, idx) => `${idx + 1}. ${query}`).join('\n')}\n\nFor each query, return 2-4 evidence items with title, URL, publishedAt (if known), concise summary, and provisional source type.`,
+      },
+    ],
+    qualityGate: (parsed) => parsed.evidence.length >= 6,
+  });
+
+  return filterAndWeightEvidence(evidence.evidence);
+}
+
+function isThinStructuredPayload(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return true;
+  const candidate = payload as any;
+
+  if (Array.isArray(candidate.brandProfiles)) {
+    const recommendationCount = (candidate.strategicRecommendations || []).length;
+    const profileDepth = candidate.brandProfiles.reduce((sum: number, profile: any) => {
+      const score =
+        (profile?.sampleVisuals?.length || 0) +
+        (profile?.colorPalette?.primaryColors?.length || 0) +
+        (profile?.typography?.usageRules?.length || 0);
+      return sum + score;
+    }, 0);
+    return candidate.brandProfiles.length === 0 || recommendationCount < 2 || profileDepth < 4;
+  }
+
+  if (Array.isArray(candidate.moments)) {
+    const categories = [candidate.moments, candidate.beliefs, candidate.tone, candidate.language, candidate.behaviors, candidate.contradictions, candidate.community, candidate.influencers];
+    return categories.some((arr) => !Array.isArray(arr) || arr.length < 4);
+  }
+
+  if (typeof candidate.answer === 'string') {
+    return candidate.answer.trim().length < 60;
+  }
+
+  return false;
+}
+
+async function runDevilsAdvocatePass(topic: string, draft: unknown, mode: SessionMode): Promise<z.infer<typeof DevilsAdvocateSchema>> {
+  return runStructuredCall({
+    schema: DevilsAdvocateSchema,
+    schemaName: 'devils_advocate',
+    mode,
+    outputType: 'analysis',
+    messages: [
+      {
+        role: 'system',
+        content: composeSystemPrompt('Steelman the opposing interpretation and identify weaknesses in the analysis.', mode),
+      },
+      {
+        role: 'user',
+        content: `Topic:\n${topic}\n\nDraft analysis:\n${JSON.stringify(draft).slice(0, 12000)}\n\nReturn a strong counter-argument and key weaknesses.`,
+      },
+    ],
+  });
+}
+
 function normalizeHttpsUrl(rawUrl?: string | null): string | null {
   if (!rawUrl) return null;
   const trimmed = rawUrl.trim();
@@ -534,6 +859,9 @@ export async function generateBrandDeepDive(input: {
     .map((brand, idx) => `${idx + 1}. ${brand.name}${brand.website ? ` (${brand.website})` : ''}`)
     .join("\n");
 
+  const topicSummary = `Brand deep dive for ${cappedBrands.map((brand) => brand.name).join(', ')} | objective: ${input.analysisObjective}`;
+  const evidenceDigest = await gatherEvidenceForTopic(topicSummary, 'brand');
+
   const prompt = `You are a senior brand design strategist and visual identity analyst.
 
 Analyze up to 6 brands by assessing their visual identity systems using this framework:
@@ -566,37 +894,59 @@ Output requirements:
 - For colorPalette values, prefer exact HEX values verified on official same-domain sources when available.
 - If same-domain verification is unavailable, still provide best-estimate HEX values inferred from observable brand visuals and mark usage clearly as estimated/unverified.
 
+Evidence digest (weighted for source quality and recency):
+${evidenceDigest}
+
 ${RESEARCH_ACCURACY_PROTOCOL}`;
 
   try {
-    const response = await getAzureAI().chat.completions.create({
-      model: getDeploymentName(),
+    const parsedStrict = await runStructuredCall({
+      schema: BrandDeepDiveReportSchema,
+      schemaName: 'brand_deep_dive_report',
+      mode: 'brand',
+      outputType: 'analysis',
       messages: [
-        { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-        { role: "user", content: prompt }
+        {
+          role: 'system',
+          content: composeSystemPrompt('You are a senior brand design strategist and visual identity analyst.', 'brand'),
+        },
+        { role: 'user', content: prompt },
       ],
-      response_format: zodResponseFormat(BrandDeepDiveReportSchema, "brand_deep_dive_report"),
+      qualityGate: (parsed) => !isThinStructuredPayload(parsed),
     });
 
-    const text = response.choices[0].message.content || "{}";
-    const parsedStrict = BrandDeepDiveReportSchema.parse(JSON.parse(text));
     const normalizedStrict = BrandDeepDiveFallbackSchema.parse(parsedStrict);
-    return sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(normalizedStrict, cappedBrands, input.analysisObjective));
+    const normalized = sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(normalizedStrict, cappedBrands, input.analysisObjective));
+    const devilsAdvocate = await runDevilsAdvocatePass(topicSummary, normalized, 'brand');
+    normalized.strategicRecommendations = [
+      ...normalized.strategicRecommendations,
+      `[KNOWN] Devil's advocate: ${devilsAdvocate.counterArgument}`,
+      ...devilsAdvocate.keyWeaknesses.map((item) => `[INFERRED] Weakness to monitor: ${item}`),
+    ].slice(0, 14);
+    updateSessionBrief('brand', normalized);
+    return normalized;
   } catch (strictError) {
     console.warn("Strict structured response failed for brand deep dive, retrying with fallback schema:", strictError);
 
-    const fallbackResponse = await getAzureAI().chat.completions.create({
-      model: getDeploymentName(),
+    const parsedFallback = await runStructuredCall({
+      schema: BrandDeepDiveFallbackSchema,
+      schemaName: 'brand_deep_dive_report_fallback',
+      mode: 'brand',
+      outputType: 'analysis',
       messages: [
-        { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-        { role: "user", content: prompt }
+        {
+          role: 'system',
+          content: composeSystemPrompt('You are a senior brand design strategist and visual identity analyst.', 'brand'),
+        },
+        { role: 'user', content: prompt },
       ],
-      response_format: zodResponseFormat(BrandDeepDiveFallbackSchema, "brand_deep_dive_report_fallback"),
+      qualityGate: (parsed) => !isThinStructuredPayload(parsed),
+      maxRetries: 3,
     });
 
-    const fallbackText = fallbackResponse.choices[0].message.content || "{}";
-    const parsedFallback = BrandDeepDiveFallbackSchema.parse(JSON.parse(fallbackText));
-    return sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(parsedFallback, cappedBrands, input.analysisObjective));
+    const normalized = sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(parsedFallback, cappedBrands, input.analysisObjective));
+    updateSessionBrief('brand', normalized);
+    return normalized;
   }
 }
 
@@ -612,6 +962,9 @@ export async function regenerateBrandDeepDiveWithFeedback(input: {
   const brandList = cappedBrands
     .map((brand, idx) => `${idx + 1}. ${brand.name}${brand.website ? ` (${brand.website})` : ''}`)
     .join("\n");
+
+  const topicSummary = `Brand deep dive rescan for ${cappedBrands.map((brand) => brand.name).join(', ')} | objective: ${input.analysisObjective}`;
+  const evidenceDigest = await gatherEvidenceForTopic(`${topicSummary} | feedback: ${input.feedback}`, 'brand');
 
   const prompt = `You are a senior brand design strategist and visual identity analyst.
 
@@ -650,37 +1003,54 @@ Output requirements:
 - For colorPalette values, prefer exact HEX values verified on official same-domain sources when available.
 - If same-domain verification is unavailable, still provide best-estimate HEX values inferred from observable brand visuals and mark usage clearly as estimated/unverified.
 
+Evidence digest (weighted for source quality and recency):
+${evidenceDigest}
+
 ${RESEARCH_ACCURACY_PROTOCOL}`;
 
   try {
-    const response = await getAzureAI().chat.completions.create({
-      model: getDeploymentName(),
+    const parsedStrict = await runStructuredCall({
+      schema: BrandDeepDiveReportSchema,
+      schemaName: 'brand_deep_dive_report_regenerated',
+      mode: 'brand',
+      outputType: 'analysis',
       messages: [
-        { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-        { role: "user", content: prompt }
+        {
+          role: 'system',
+          content: composeSystemPrompt('You are a senior brand design strategist and visual identity analyst correcting a prior audit.', 'brand'),
+        },
+        { role: 'user', content: prompt },
       ],
-      response_format: zodResponseFormat(BrandDeepDiveReportSchema, "brand_deep_dive_report_regenerated"),
+      qualityGate: (parsed) => !isThinStructuredPayload(parsed),
+      maxRetries: 3,
     });
 
-    const text = response.choices[0].message.content || "{}";
-    const parsedStrict = BrandDeepDiveReportSchema.parse(JSON.parse(text));
     const normalizedStrict = BrandDeepDiveFallbackSchema.parse(parsedStrict);
-    return sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(normalizedStrict, cappedBrands, input.analysisObjective));
+    const normalized = sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(normalizedStrict, cappedBrands, input.analysisObjective));
+    updateSessionBrief('brand', normalized);
+    return normalized;
   } catch (strictError) {
     console.warn("Strict structured response failed for regenerated brand deep dive, retrying with fallback schema:", strictError);
 
-    const fallbackResponse = await getAzureAI().chat.completions.create({
-      model: getDeploymentName(),
+    const parsedFallback = await runStructuredCall({
+      schema: BrandDeepDiveFallbackSchema,
+      schemaName: 'brand_deep_dive_report_regenerated_fallback',
+      mode: 'brand',
+      outputType: 'analysis',
       messages: [
-        { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-        { role: "user", content: prompt }
+        {
+          role: 'system',
+          content: composeSystemPrompt('You are a senior brand design strategist and visual identity analyst correcting a prior audit.', 'brand'),
+        },
+        { role: 'user', content: prompt },
       ],
-      response_format: zodResponseFormat(BrandDeepDiveFallbackSchema, "brand_deep_dive_report_regenerated_fallback"),
+      qualityGate: (parsed) => !isThinStructuredPayload(parsed),
+      maxRetries: 3,
     });
 
-    const fallbackText = fallbackResponse.choices[0].message.content || "{}";
-    const parsedFallback = BrandDeepDiveFallbackSchema.parse(JSON.parse(fallbackText));
-    return sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(parsedFallback, cappedBrands, input.analysisObjective));
+    const normalized = sanitizeBrandDeepDiveReport(normalizeBrandDeepDiveReport(parsedFallback, cappedBrands, input.analysisObjective));
+    updateSessionBrief('brand', normalized);
+    return normalized;
   }
 }
 
@@ -688,6 +1058,8 @@ export async function generateDeepDive(
   insight: MatrixItem,
   context: { audience: string; brand: string; generations: string[]; topicFocus?: string }
 ): Promise<DeepDiveReport> {
+  const evidenceDigest = await gatherEvidenceForTopic(`Deep dive on insight: ${insight.text}`, 'cultural');
+
   const prompt = `You are an expert Cultural Archeologist and Brand Strategist.
   I am providing you with a specific cultural insight about the following audience:
   Audience: ${context.audience}
@@ -698,20 +1070,37 @@ export async function generateDeepDive(
   Insight: "${insight.text}"
   
   Please provide a deep dive into this specific insight to help me build strategies.
+  First internally work through competing interpretations before finalizing output.
+
+  Evidence digest:\n${evidenceDigest}
 
   ${RESEARCH_ACCURACY_PROTOCOL}`;
 
-  const response = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
+  const parsed = await runStructuredCall({
+    schema: DeepDiveReportSchema,
+    schemaName: 'deep_dive_report',
+    mode: 'cultural',
+    outputType: 'analysis',
     messages: [
-      { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-      { role: "user", content: prompt }
+      {
+        role: 'system',
+        content: composeSystemPrompt('You are an expert Cultural Archeologist and Brand Strategist.', 'cultural'),
+      },
+      { role: 'user', content: prompt },
     ],
-    response_format: zodResponseFormat(DeepDiveReportSchema, "deep_dive_report"),
+    qualityGate: (result) => !isThinStructuredPayload(result),
+    maxRetries: 3,
   });
 
-  const text = response.choices[0].message.content || "{}";
-  return sanitizeDeepDiveReport(JSON.parse(text) as DeepDiveReport);
+  const devil = await runDevilsAdvocatePass(`Deep dive: ${insight.text}`, parsed, 'cultural');
+  const sanitized = sanitizeDeepDiveReport(parsed);
+  sanitized.strategicImplications = [
+    ...sanitized.strategicImplications,
+    `[INFERRED] Devil's advocate: ${devil.counterArgument}`,
+    ...devil.keyWeaknesses.slice(0, 2).map((item) => `[SPECULATIVE] Risk check: ${item}`),
+  ];
+  updateSessionBrief('cultural', sanitized);
+  return sanitized;
 }
 
 export async function generateDeepDivesBatch(
@@ -732,18 +1121,24 @@ export async function generateDeepDivesBatch(
 
   ${RESEARCH_ACCURACY_PROTOCOL}`;
 
-  const response = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
+  const parsed = await runStructuredCall({
+    schema: z.object({ reports: z.array(DeepDiveReportSchema) }),
+    schemaName: 'deep_dive_reports',
+    mode: 'cultural',
+    outputType: 'analysis',
     messages: [
-      { role: "system", content: RESEARCH_ACCURACY_PROTOCOL },
-      { role: "user", content: prompt }
+      {
+        role: 'system',
+        content: composeSystemPrompt('You are an expert Cultural Archeologist and Brand Strategist.', 'cultural'),
+      },
+      { role: 'user', content: prompt },
     ],
-    response_format: zodResponseFormat(z.object({ reports: z.array(DeepDiveReportSchema) }), "deep_dive_reports"),
+    qualityGate: (result) => Array.isArray(result.reports) && result.reports.length >= Math.max(1, Math.floor(insights.length * 0.6)),
   });
 
-  const text = response.choices[0].message.content || "{}";
-  const parsed = JSON.parse(text);
-  return (parsed.reports || []).map((report: DeepDiveReport) => sanitizeDeepDiveReport(report));
+  const reports = (parsed.reports || []).map((report: DeepDiveReport) => sanitizeDeepDiveReport(report));
+  updateSessionBrief('cultural', { reports });
+  return reports;
 }
 
 const MatrixAnswerSchema = z.object({
@@ -785,41 +1180,49 @@ function looksLikeBrandDeepDiveCorrectionPrompt(prompt: string): boolean {
 }
 
 export async function askMatrixQuestion(matrix: CulturalMatrix, question: string): Promise<{ answer: string, relevantInsights: string[] }> {
-  const response = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
+  const parsed = await runStructuredCall({
+    schema: MatrixAnswerSchema,
+    schemaName: 'matrix_answer',
+    mode: 'matrix-qa',
+    outputType: 'analysis',
     messages: [
-      { role: "system", content: "You are an expert analyst. Answer using ONLY the provided matrix data. Do not invent facts. If the data is insufficient, explicitly say so. Provide a clear answer, and list the exact 'text' of relevant insights from the data." },
-      { role: "user", content: `Data:\n\n${JSON.stringify(matrix)}\n\nQuestion: "${question}"` }
+      {
+        role: 'system',
+        content: composeSystemPrompt("You are an expert analyst. Answer using ONLY the provided matrix data. Do not invent facts. If the data is insufficient, explicitly say so. Provide a clear answer, and list the exact 'text' of relevant insights from the data.", 'matrix-qa'),
+      },
+      { role: 'user', content: `Data:\n\n${JSON.stringify(matrix)}\n\nQuestion: "${question}"` },
     ],
-    response_format: zodResponseFormat(MatrixAnswerSchema, "matrix_answer"),
+    qualityGate: (result) => !isThinStructuredPayload(result),
   });
-  
-  const text = response.choices[0].message.content || "{}";
-  return JSON.parse(text);
+
+  updateSessionBrief('matrix-qa', parsed);
+  return parsed;
 }
 
 export async function askBrandDeepDiveQuestion(
   report: BrandDeepDiveReport,
   question: string
 ): Promise<{ answer: string }> {
-  const response = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
+  const parsed = await runStructuredCall({
+    schema: BrandDeepDiveAnswerSchema,
+    schemaName: 'brand_deep_dive_answer',
+    mode: 'brand-qa',
+    outputType: 'analysis',
     messages: [
       {
-        role: "system",
-        content:
-          `${RESEARCH_ACCURACY_PROTOCOL}\nYou are an expert brand strategist and design analyst. Answer using ONLY the provided brand deep dive report data. Do not invent facts. If the report does not contain enough information, explicitly say so. Provide a concise, direct answer.`,
+        role: 'system',
+        content: composeSystemPrompt('You are an expert brand strategist and design analyst. Answer using ONLY the provided brand deep dive report data. Do not invent facts. If the report does not contain enough information, explicitly say so. Provide a concise, direct answer.', 'brand-qa'),
       },
       {
-        role: "user",
+        role: 'user',
         content: `Data:\n\n${JSON.stringify(report)}\n\nQuestion: "${question}"`,
       },
     ],
-    response_format: zodResponseFormat(BrandDeepDiveAnswerSchema, "brand_deep_dive_answer"),
+    qualityGate: (result) => !isThinStructuredPayload(result),
   });
 
-  const text = response.choices[0].message.content || "{}";
-  return JSON.parse(text);
+  updateSessionBrief('brand-qa', parsed);
+  return parsed;
 }
 
 export async function submitBrandDeepDivePrompt(input: {
@@ -992,6 +1395,23 @@ const CulturalMatrixSchema = z.object({
   sources: z.array(SourceSchema)
 });
 
+const CulturalRawSignalsSchema = z.object({
+  demographics: z.object({
+    age: z.string(),
+    race: z.string(),
+    gender: z.string(),
+  }),
+  moments: z.array(z.string()),
+  beliefs: z.array(z.string()),
+  tone: z.array(z.string()),
+  language: z.array(z.string()),
+  behaviors: z.array(z.string()),
+  contradictions: z.array(z.string()),
+  community: z.array(z.string()),
+  influencers: z.array(z.string()),
+  sources: z.array(SourceSchema),
+});
+
 export async function generateCulturalMatrix(audience: string, brand?: string, generations?: string[], topicFocus?: string, files?: UploadedFile[], sourcesType?: string[]): Promise<CulturalMatrix> {
   const contextStr = brand ? ` in the context of the brand/category: "${brand}"` : "";
   const topicStr = topicFocus ? `\n\nCRITICAL: You MUST focus all your insights specifically on the topic of "${topicFocus}". Only show results relevant to this topic.` : "";
@@ -1005,9 +1425,15 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     ? `\n\nCRITICAL: You MUST restrict your sources and insights to be derived primarily from ${sourcesType.join(', ')} sources. Adjust your tone, findings, and the specific cultural signals you highlight to reflect the unique perspective, narratives, and biases of these media types.`
     : "";
 
-  const systemInstruction = `You are an expert cultural strategist and marketer. Your goal is to provide deep, accurate, and actionable cultural insights for the requested audience based on recent data. Highlight results that are extremely unique to this audience by setting isHighlyUnique to true (comparing them against demographic peers who are NOT involved in this specific brand, industry, or topic).
+  const systemInstruction = composeSystemPrompt(
+    'You are an expert cultural strategist and marketer. Your goal is to provide deep, accurate, and actionable cultural insights for the requested audience based on recent data. Highlight results that are extremely unique to this audience by setting isHighlyUnique to true (comparing them against demographic peers who are NOT involved in this specific brand, industry, or topic).',
+    'cultural'
+  );
 
-${RESEARCH_ACCURACY_PROTOCOL}`;
+  const evidenceDigest = await gatherEvidenceForTopic(
+    `Audience: ${audience}; Brand: ${brand || 'n/a'}; Topic: ${topicFocus || 'n/a'}; Generations: ${(generations || []).join(', ') || 'n/a'}`,
+    'cultural'
+  );
 
   const prompt = `Generate a comprehensive cultural archeologist report for the following audience: "${audience}"${contextStr}.${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
     
@@ -1027,7 +1453,10 @@ ${RESEARCH_ACCURACY_PROTOCOL}`;
     - COMMUNITY: Who do people look to for identity or belonging?
     - INFLUENCERS: People who are shaping their beliefs & behavior.
     
-    Also provide a rough demographic breakdown (age, race, gender) for this audience in the context of the brand/category.`;
+    Also provide a rough demographic breakdown (age, race, gender) for this audience in the context of the brand/category.
+
+    Evidence digest (quality and date weighted):
+    ${evidenceDigest}`;
 
   // Note: Azure OpenAI does not have a built-in "googleSearch" tool like Gemini.
   // To achieve similar web-grounding, you would need to implement an external search tool
@@ -1046,47 +1475,55 @@ ${RESEARCH_ACCURACY_PROTOCOL}`;
     messages.push({ role: "user", content: `Attached Documents:\n${fileContents}` });
   }
 
-  const response = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
-    messages: messages,
-    response_format: zodResponseFormat(CulturalMatrixSchema, "cultural_matrix"),
+  const rawSignals = await runStructuredCall({
+    schema: CulturalRawSignalsSchema,
+    schemaName: 'cultural_raw_signals',
+    mode: 'cultural',
+    outputType: 'analysis',
+    messages,
+    qualityGate: (payload) => !isThinStructuredPayload(payload),
+    maxRetries: 3,
   });
 
-  const draftText = response.choices[0].message.content;
-  if (!draftText) {
-    throw new Error("No response from Azure OpenAI");
-  }
+  const interpretationPrompt = `Using the extracted raw signals below, produce the final Cultural Matrix with high specificity and explicit uncertainty labeling.
 
-  // Chain of Thought Verification / Self-Critique Step
-  const reviewPrompt = `You are an expert cultural researcher and fact-checker. Review the following draft cultural archeologist report for the audience: "${audience}"${contextStr}.${topicStr}${generationStr}${sourcesTypeStr}
+Raw signals:
+${JSON.stringify(rawSignals)}
 
-Draft Report:
-${draftText}
+Rules:
+- Keep each category 6-10 items when evidence supports it.
+- Use confidenceLevel rigorously.
+- Label uncertain language in text fields with [KNOWN], [INFERRED], [SPECULATIVE].
+- Ensure sources remain credible and recent, flagging stale evidence when necessary.`;
 
-Your task is to:
-1. Fact-check the sources. Remove any dead links or hallucinated URLs.
-2. Ensure the insights are highly accurate, potent, and specific to the audience.
-3. Verify that the insights and sources strongly align with the requested source type (${sourcesType && sourcesType.length > 0 ? sourcesType.join(', ') : 'any'}).
-4. Refine the language to be professional and insightful.
-5. Return the final, verified report in the exact same JSON format.
-
-Do not include any commentary outside the JSON structure.`;
-
-  const finalResponse = await getAzureAI().chat.completions.create({
-    model: getDeploymentName(),
+  const interpretedMatrix = await runStructuredCall({
+    schema: CulturalMatrixSchema,
+    schemaName: 'cultural_matrix',
+    mode: 'cultural',
+    outputType: 'analysis',
     messages: [
-      { role: "system", content: systemInstruction },
-      { role: "user", content: reviewPrompt }
+      { role: 'system', content: systemInstruction },
+      { role: 'user', content: interpretationPrompt },
     ],
-    response_format: zodResponseFormat(CulturalMatrixSchema, "cultural_matrix"),
+    qualityGate: (payload) => !isThinStructuredPayload(payload),
+    maxRetries: 3,
   });
 
-  const finalText = finalResponse.choices[0].message.content;
-  if (!finalText) {
-    throw new Error("No response from Azure OpenAI during review step");
-  }
+  const devil = await runDevilsAdvocatePass(`Cultural matrix for ${audience}`, interpretedMatrix, 'cultural');
+  interpretedMatrix.contradictions = [
+    ...interpretedMatrix.contradictions,
+    {
+      text: `[SPECULATIVE] Devil's advocate lens: ${devil.counterArgument}`,
+      isHighlyUnique: false,
+      sourceType: 'Methodological challenge',
+      confidenceLevel: 'low' as const,
+      isFromDocument: false,
+    },
+  ].slice(0, 10);
 
-  return sanitizeCulturalMatrix(JSON.parse(finalText) as CulturalMatrix);
+  const sanitized = sanitizeCulturalMatrix(interpretedMatrix);
+  updateSessionBrief('cultural', sanitized);
+  return sanitized;
 }
 
 // Re-export types for convenience
