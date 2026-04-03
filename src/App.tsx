@@ -10,6 +10,9 @@ import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from './serv
 import { generateCulturalMatrix, autoPopulateFields, suggestBrands, askMatrixQuestion, generateDeepDive, generateDeepDivesBatch } from './services/azure-openai';
 import { SplashGrid } from './components/SplashGrid';
 import { BrandDeepDivePage } from './components/BrandDeepDivePage';
+import { TrendLifecycleBadge } from './components/TrendLifecycleBadge';
+import { ProgressiveLoader } from './components/ProgressiveLoader';
+import { Accordion } from './components/Accordion';
 import pptxgen from 'pptxgenjs';
 
 declare const google: any;
@@ -22,6 +25,7 @@ interface SavedMatrix {
   generations: string[];
   topicFocus?: string;
   sourcesType?: string[];
+  hasUploadedDocuments?: boolean;
   matrix: CulturalMatrix;
 }
 
@@ -63,6 +67,16 @@ const getErrorMessage = (error: unknown): string => {
     return error.message;
   }
   return String(error);
+};
+
+const stripDemographicEvidenceMarkers = (value: string): string => {
+  if (!value) return '';
+
+  return value
+    .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE)\]\s*/gi, '')
+    .replace(/\b(KNOWN|INFERRED|INFERED|SPECULATIVE)\b\s*[:\-]?\s*/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 };
 
 const GENERATIONS = [
@@ -120,6 +134,7 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isSplashHeld, setIsSplashHeld] = useState(false);
   const [activeExperience, setActiveExperience] = useState<'research' | 'brand' | null>(null);
+  const [hasOpenedBrand, setHasOpenedBrand] = useState(false);
   const [brand, setBrand] = useState('');
   const [audience, setAudience] = useState('');
   const [showValidation, setShowValidation] = useState(false);
@@ -148,6 +163,7 @@ export default function App() {
   const [deepDiveInsight, setDeepDiveInsight] = useState<MatrixItem | null>(null);
   const [deepDiveResult, setDeepDiveResult] = useState<DeepDiveReport | null>(null);
   const [isDeepDiveLoading, setIsDeepDiveLoading] = useState(false);
+  const [isVocabularyOpen, setIsVocabularyOpen] = useState(false);
   
   const [savedMatrices, setSavedMatrices] = useState<SavedMatrix[]>([]);
   const [isBrandDropdownOpen, setIsBrandDropdownOpen] = useState(false);
@@ -158,7 +174,7 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [matrix, setMatrix] = useState<CulturalMatrix | null>(null);
-  const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[]} | null>(null);
+  const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[], hasUploadedDocuments?: boolean} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -199,6 +215,7 @@ export default function App() {
       generations: sm.generations || [],
       topicFocus: sm.topicFocus,
       sourcesType: sm.sourcesType || [],
+      hasUploadedDocuments: sm.hasUploadedDocuments || false,
     });
 
     if (shouldScroll) {
@@ -207,9 +224,16 @@ export default function App() {
   };
 
   const deepDiveDragControls = useDragControls();
+  const reportRef = useRef<HTMLDivElement>(null);
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const splashStartedAtRef = useRef<number | null>(null);
   const splashRemainingMsRef = useRef<number>(SPLASH_DURATION_MS);
+
+  useEffect(() => {
+    if (activeExperience === 'brand') {
+      setHasOpenedBrand(true);
+    }
+  }, [activeExperience]);
 
   // Auto-hide splash screen after 3 seconds, with press-and-hold pause.
   useEffect(() => {
@@ -435,10 +459,11 @@ export default function App() {
     setMatrixQuestion('');
     setMatrixAnswer('');
     setHighlightedInsights([]);
+    const hasUploadedDocuments = files.length > 0;
     try {
       const result = await generateCulturalMatrix(audience, brand, selectedGenerations, topicFocus, files, sourcesType);
       setMatrix(result);
-      setMatrixMeta({ audience, brand, generations: selectedGenerations, topicFocus, sourcesType });
+      setMatrixMeta({ audience, brand, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
 
       // Persist generated searches to backend for cross-user visibility.
       try {
@@ -470,6 +495,7 @@ export default function App() {
         generations: selectedGenerations,
         topicFocus,
         sourcesType,
+        hasUploadedDocuments,
         matrix: result
       };
       const updated = [newMatrix, ...savedMatrices];
@@ -698,6 +724,10 @@ export default function App() {
     // Title Slide
     const slide = pres.addSlide();
     slide.background = { color: "FAFAFA" };
+
+    const cleanAge = stripDemographicEvidenceMarkers(matrix.demographics.age);
+    const cleanRace = stripDemographicEvidenceMarkers(matrix.demographics.race);
+    const cleanGender = stripDemographicEvidenceMarkers(matrix.demographics.gender);
     
     slide.addText("Cultural Archeologist", { x: 1, y: 1.5, w: 8, h: 1, fontSize: 44, bold: true, color: "18181B" });
     slide.addText(`Audience: ${matrixMeta.audience}`, { x: 1, y: 2.5, w: 8, h: 0.5, fontSize: 24, color: "4F46E5", bold: true });
@@ -731,16 +761,22 @@ export default function App() {
     slide.addText([
       { text: "AVERAGE AGE\n", options: { fontSize: 10, color: "A1A1AA", bold: true } },
       { text: matrix.demographics.age, options: { fontSize: 14, color: "18181B", bold: true } }
+      { text: cleanAge, options: { fontSize: 14, color: "18181B", bold: true } }
     ], { shape: pres.ShapeType.roundRect, x: 1, y: boxY, w: 2.5, h: 0.8, fill: { color: "FFFFFF" }, line: { color: "E4E4E7", width: 1 }, align: "center", valign: "middle" });
     
     slide.addText([
       { text: "RACE / ETHNICITY\n", options: { fontSize: 10, color: "A1A1AA", bold: true } },
       { text: matrix.demographics.race, options: { fontSize: 14, color: "18181B", bold: true } }
+      { text: cleanRace, options: { fontSize: 14, color: "18181B", bold: true } }
     ], { shape: pres.ShapeType.roundRect, x: 3.75, y: boxY, w: 2.5, h: 0.8, fill: { color: "FFFFFF" }, line: { color: "E4E4E7", width: 1 }, align: "center", valign: "middle" });
     
     slide.addText([
       { text: "GENDER\n", options: { fontSize: 10, color: "A1A1AA", bold: true } },
       { text: matrix.demographics.gender, options: { fontSize: 14, color: "18181B", bold: true } }
+      { text: cleanGender, options: { fontSize: 14, color: "18181B", bold: true } }
+      const cleanAge = stripDemographicEvidenceMarkers(matrix.demographics.age);
+      const cleanRace = stripDemographicEvidenceMarkers(matrix.demographics.race);
+      const cleanGender = stripDemographicEvidenceMarkers(matrix.demographics.gender);
     ], { shape: pres.ShapeType.roundRect, x: 6.5, y: boxY, w: 2.5, h: 0.8, fill: { color: "FFFFFF" }, line: { color: "E4E4E7", width: 1 }, align: "center", valign: "middle" });
     
     const categories = [
@@ -916,9 +952,9 @@ export default function App() {
         y += 15;
         y = addWrappedText("Demographics", margin, y, 14, true, [24, 24, 27]);
         y += 2;
-        y = addWrappedText(`Average Age: ${matrix.demographics.age}`, margin, y, 11, false, [63, 63, 70]);
-        y = addWrappedText(`Race / Ethnicity: ${matrix.demographics.race}`, margin, y, 11, false, [63, 63, 70]);
-        y = addWrappedText(`Gender: ${matrix.demographics.gender}`, margin, y, 11, false, [63, 63, 70]);
+        y = addWrappedText(`Average Age: ${cleanAge}`, margin, y, 11, false, [63, 63, 70]);
+        y = addWrappedText(`Race / Ethnicity: ${cleanRace}`, margin, y, 11, false, [63, 63, 70]);
+        y = addWrappedText(`Gender: ${cleanGender}`, margin, y, 11, false, [63, 63, 70]);
         
         const categories = [
           { title: 'Moments', data: matrix.moments },
@@ -1139,6 +1175,10 @@ export default function App() {
               <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-zinc-950 mb-5 select-none">
                  Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archeologist</span>
               </h1>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1.5 text-xs font-medium text-zinc-600 shadow-sm">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                Loading research tools...
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -1152,7 +1192,7 @@ export default function App() {
       </div>
       
       <main className="relative z-10 max-w-6xl mx-auto px-6 py-16 md:py-24">
-        {activeExperience === null ? (
+        {activeExperience === null && (
           <motion.section
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1193,9 +1233,15 @@ export default function App() {
               </button>
             </div>
           </motion.section>
-        ) : activeExperience === 'brand' ? (
-          <BrandDeepDivePage onBack={() => setActiveExperience(null)} />
-        ) : (
+        )}
+
+        {(activeExperience === 'brand' || hasOpenedBrand) && (
+          <div className={activeExperience === 'brand' ? '' : 'hidden'}>
+            <BrandDeepDivePage onBack={() => setActiveExperience('research')} />
+          </div>
+        )}
+
+        {activeExperience === 'research' && (
           <>
             {/* Top Navigation / Actions */}
             <div className="absolute top-6 right-6 z-50 no-print flex items-center gap-2">
@@ -1356,68 +1402,208 @@ export default function App() {
                     <p className="text-zinc-500 animate-pulse">Analyzing cultural signals and strategic implications...</p>
                   </div>
                 ) : deepDiveResult ? (
-                  <div className="space-y-8">
-                    <section>
-                      <h4 className="text-lg font-bold text-zinc-900 mb-3 flex items-center gap-2">
-                        <Search className="w-5 h-5 text-indigo-500" />
-                        Expanded Context
-                      </h4>
-                      <p className="text-zinc-700 leading-relaxed text-sm">{deepDiveResult.expandedContext}</p>
-                    </section>
+                  <div>
+                    <div className="md:hidden">
+                      <Accordion
+                        items={[
+                          {
+                            id: 'expanded-context',
+                            title: (
+                              <>
+                                <Search className="w-4 h-4 text-indigo-500" />
+                                Expanded Context
+                              </>
+                            ),
+                            content: <p className="text-zinc-700 leading-relaxed text-sm">{deepDiveResult.expandedContext}</p>,
+                          },
+                          {
+                            id: 'strategic-implications',
+                            title: (
+                              <>
+                                <Target className="w-4 h-4 text-emerald-500" />
+                                Strategic Implications
+                              </>
+                            ),
+                            content: (
+                              <ul className="space-y-3">
+                                {deepDiveResult.strategicImplications.map((imp, i) => (
+                                  <li key={i} className="flex gap-3 text-zinc-700 text-sm">
+                                    <span className="text-emerald-500 mt-0.5">•</span>
+                                    <span>{imp}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ),
+                          },
+                          {
+                            id: 'real-world-examples',
+                            title: (
+                              <>
+                                <Presentation className="w-4 h-4 text-blue-500" />
+                                Real-World Examples
+                              </>
+                            ),
+                            content: (
+                              <ul className="space-y-3">
+                                {deepDiveResult.realWorldExamples.map((ex, i) => (
+                                  <li key={i} className="flex gap-3 text-zinc-700 text-sm bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                                    <span className="text-blue-500 mt-0.5">•</span>
+                                    <span>{ex}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ),
+                          },
+                          ...(deepDiveResult.sources && deepDiveResult.sources.length > 0
+                            ? [
+                                {
+                                  id: 'deep-dive-sources',
+                                  title: 'Sources',
+                                  content: (
+                                    <div className="flex flex-wrap gap-2">
+                                      {deepDiveResult.sources.map((source, i) => (
+                                        <a
+                                          key={i}
+                                          href={source.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          <span className="truncate max-w-[200px]">{source.title}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ),
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
+                    </div>
 
-                    <div className="gap-8">
+                    <div className="hidden md:block space-y-8">
                       <section>
                         <h4 className="text-lg font-bold text-zinc-900 mb-3 flex items-center gap-2">
-                          <Target className="w-5 h-5 text-emerald-500" />
-                          Strategic Implications
+                          <Search className="w-5 h-5 text-indigo-500" />
+                          Expanded Context
+                        </h4>
+                        <p className="text-zinc-700 leading-relaxed text-sm">{deepDiveResult.expandedContext}</p>
+                      </section>
+
+                      <div className="gap-8">
+                        <section>
+                          <h4 className="text-lg font-bold text-zinc-900 mb-3 flex items-center gap-2">
+                            <Target className="w-5 h-5 text-emerald-500" />
+                            Strategic Implications
+                          </h4>
+                          <ul className="space-y-3">
+                            {deepDiveResult.strategicImplications.map((imp, i) => (
+                              <li key={i} className="flex gap-3 text-zinc-700 text-sm">
+                                <span className="text-emerald-500 mt-0.5">•</span>
+                                <span>{imp}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      </div>
+
+                      <section>
+                        <h4 className="text-lg font-bold text-zinc-900 mb-3 flex items-center gap-2">
+                          <Presentation className="w-5 h-5 text-blue-500" />
+                          Real-World Examples
                         </h4>
                         <ul className="space-y-3">
-                          {deepDiveResult.strategicImplications.map((imp, i) => (
-                            <li key={i} className="flex gap-3 text-zinc-700 text-sm">
-                              <span className="text-emerald-500 mt-0.5">•</span>
-                              <span>{imp}</span>
+                          {deepDiveResult.realWorldExamples.map((ex, i) => (
+                            <li key={i} className="flex gap-3 text-zinc-700 text-sm bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                              <span className="text-blue-500 mt-0.5">•</span>
+                              <span>{ex}</span>
                             </li>
                           ))}
                         </ul>
                       </section>
+
+                      {deepDiveResult.sources && deepDiveResult.sources.length > 0 && (
+                        <section className="pt-6 border-t border-zinc-100">
+                          <h4 className="text-sm font-bold text-zinc-900 mb-3">Sources</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {deepDiveResult.sources.map((source, i) => (
+                              <a
+                                key={i}
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span className="truncate max-w-[200px]">{source.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </section>
+                      )}
                     </div>
-
-                    <section>
-                      <h4 className="text-lg font-bold text-zinc-900 mb-3 flex items-center gap-2">
-                        <Presentation className="w-5 h-5 text-blue-500" />
-                        Real-World Examples
-                      </h4>
-                      <ul className="space-y-3">
-                        {deepDiveResult.realWorldExamples.map((ex, i) => (
-                          <li key={i} className="flex gap-3 text-zinc-700 text-sm bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-                            <span className="text-blue-500 mt-0.5">•</span>
-                            <span>{ex}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-
-                    {deepDiveResult.sources && deepDiveResult.sources.length > 0 && (
-                      <section className="pt-6 border-t border-zinc-100">
-                        <h4 className="text-sm font-bold text-zinc-900 mb-3">Sources</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {deepDiveResult.sources.map((source, i) => (
-                            <a 
-                              key={i} 
-                              href={source.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-full transition-colors"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              <span className="truncate max-w-[200px]">{source.title}</span>
-                            </a>
-                          ))}
-                        </div>
-                      </section>
-                    )}
                   </div>
                 ) : null}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Vocabulary Extractor Popout */}
+        <AnimatePresence>
+          {isVocabularyOpen && matrix && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-6"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setIsVocabularyOpen(false);
+                }
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              >
+                <button
+                  onClick={() => setIsVocabularyOpen(false)}
+                  className="absolute top-6 right-6 p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 rounded-full transition-colors z-10"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="pr-8 mb-5">
+                  <h3 className="text-xl font-bold text-zinc-900">Vocabulary Extractor</h3>
+                  <p className="text-sm text-zinc-500">Instant language guardrails for copywriters.</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 mb-2">Words they use</h4>
+                    <ul className="space-y-1">
+                      {(matrix.vocabulary?.wordsTheyUse || []).slice(0, 20).map((word, idx) => (
+                        <li key={`use-${idx}`} className="text-sm text-emerald-900">• {word}</li>
+                      ))}
+                      {(!matrix.vocabulary?.wordsTheyUse || matrix.vocabulary.wordsTheyUse.length === 0) && (
+                        <li className="text-sm text-emerald-900/80">No terms extracted yet.</li>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-800 mb-2">Words to avoid</h4>
+                    <ul className="space-y-1">
+                      {(matrix.vocabulary?.wordsToAvoid || []).slice(0, 20).map((word, idx) => (
+                        <li key={`avoid-${idx}`} className="text-sm text-rose-900">• {word}</li>
+                      ))}
+                      {(!matrix.vocabulary?.wordsToAvoid || matrix.vocabulary.wordsToAvoid.length === 0) && (
+                        <li className="text-sm text-rose-900/80">No avoidance terms extracted yet.</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -1774,10 +1960,16 @@ export default function App() {
               className="w-[288px] mx-auto px-4 py-4 bg-zinc-900 text-white rounded-2xl font-medium hover:bg-zinc-800 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-zinc-900/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none transition-all flex items-center justify-center gap-2 text-lg mt-2 select-none relative overflow-hidden"
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Generating... {Math.round(fakeProgress)}%</span>
-                </>
+                <ProgressiveLoader
+                  messages={[
+                    'Scanning latest audience signals...',
+                    'Synthesizing cultural tensions...',
+                    'Ranking highest-potency insights...',
+                    'Shaping strategist-ready output...',
+                  ]}
+                  showProgress
+                  progress={fakeProgress}
+                />
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" /> Generate Insights
@@ -1864,6 +2056,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {matrix && matrixMeta && (
             <motion.div
+              ref={reportRef}
               key="matrix"
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1964,14 +2157,17 @@ export default function App() {
                 <div className="bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm text-center">
                   <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Average Age</div>
                   <div className="text-lg font-semibold text-zinc-900">{matrix.demographics.age}</div>
+                                  <div className="text-lg font-semibold text-zinc-900">{stripDemographicEvidenceMarkers(matrix.demographics.age)}</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm text-center">
                   <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Race / Ethnicity</div>
                   <div className="text-lg font-semibold text-zinc-900">{matrix.demographics.race}</div>
+                                  <div className="text-lg font-semibold text-zinc-900">{stripDemographicEvidenceMarkers(matrix.demographics.race)}</div>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm text-center">
                   <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Gender</div>
                   <div className="text-lg font-semibold text-zinc-900">{matrix.demographics.gender}</div>
+                                  <div className="text-lg font-semibold text-zinc-900">{stripDemographicEvidenceMarkers(matrix.demographics.gender)}</div>
                 </div>
               </div>
 
@@ -1980,7 +2176,7 @@ export default function App() {
                   <Sparkles className="w-4 h-4 text-indigo-500" />
                   <span>Highly unique observation</span>
                 </div>
-                {MATRIX_INSIGHT_KEYS.some((cat) =>
+                {matrixMeta?.hasUploadedDocuments && MATRIX_INSIGHT_KEYS.some((cat) =>
                   matrix[cat]?.some((item) => item.isFromDocument)
                 ) && (
                   <div className="flex items-center gap-2 text-sm text-zinc-600">
@@ -1995,14 +2191,14 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-                <MatrixCard title="Moments" subtext="External forces shaping their behavior" items={matrix.moments} delay={0.1} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Beliefs" subtext="Values they’re operating from" items={matrix.beliefs} delay={0.2} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Tone" subtext="What & how they feel" items={matrix.tone} delay={0.3} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Language" subtext="How they communicate" items={matrix.language} delay={0.4} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Behaviors" subtext="How they act/interact" items={matrix.behaviors} delay={0.5} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Contradictions" subtext="Emerging tensions or shift in values or behavior" items={matrix.contradictions} delay={0.6} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Community" subtext="Who people look to for identity & belonging" items={matrix.community} delay={0.7} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
-                <MatrixCard title="Influencers" subtext="People who are shaping their beliefs & behavior" items={matrix.influencers} delay={0.8} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} />
+                <MatrixCard title="Moments" subtext="External forces shaping their behavior" items={matrix.moments} delay={0.1} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Beliefs" subtext="Values they’re operating from" items={matrix.beliefs} delay={0.2} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Tone" subtext="What & how they feel" items={matrix.tone} delay={0.3} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Language" subtext="How they communicate" items={matrix.language} delay={0.4} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} onOpenVocabularyExtractor={() => setIsVocabularyOpen(true)} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Behaviors" subtext="How they act/interact" items={matrix.behaviors} delay={0.5} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Contradictions" subtext="Emerging tensions or shift in values or behavior" items={matrix.contradictions} delay={0.6} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Community" subtext="Who people look to for identity & belonging" items={matrix.community} delay={0.7} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
+                <MatrixCard title="Influencers" subtext="People who are shaping their beliefs & behavior" items={matrix.influencers} delay={0.8} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
               </div>
 
               {/* Sources Section */}
@@ -2099,7 +2295,7 @@ export default function App() {
   );
 }
 
-function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], onDeepDive }: { title: string; subtext: string; items: MatrixItem[]; delay: number; highlightedInsights?: string[]; onDeepDive?: (item: MatrixItem) => void }) {
+function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], onDeepDive, onOpenVocabularyExtractor, showDocumentInsights = false }: { title: string; subtext: string; items: MatrixItem[]; delay: number; highlightedInsights?: string[]; onDeepDive?: (item: MatrixItem) => void; onOpenVocabularyExtractor?: () => void; showDocumentInsights?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const INITIAL_SHOW = 3;
 
@@ -2111,6 +2307,36 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
       return 'bg-amber-50 text-amber-700 border border-amber-200';
     }
     return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
+  };
+
+  const evidenceLabelClass = (label: 'known' | 'inferred' | 'speculative') => {
+    if (label === 'known') {
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+    }
+    if (label === 'speculative') {
+      return 'bg-amber-50 text-amber-700 border border-amber-200';
+    }
+    return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
+  };
+
+  const extractEvidenceLabels = (text: string): { cleanText: string; labels: Array<'known' | 'inferred' | 'speculative'> } => {
+    const labels: Array<'known' | 'inferred' | 'speculative'> = [];
+    let cleanText = text;
+
+    if (/\[KNOWN\]/i.test(cleanText)) {
+      labels.push('known');
+      cleanText = cleanText.replace(/\[KNOWN\]\s*/gi, '');
+    }
+    if (/\[INFERRED\]/i.test(cleanText)) {
+      labels.push('inferred');
+      cleanText = cleanText.replace(/\[INFERRED\]\s*/gi, '');
+    }
+    if (/\[SPECULATIVE\]/i.test(cleanText)) {
+      labels.push('speculative');
+      cleanText = cleanText.replace(/\[SPECULATIVE\]\s*/gi, '');
+    }
+
+    return { cleanText: cleanText.trim(), labels };
   };
   
   if (!items || items.length === 0) return null;
@@ -2125,12 +2351,24 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
       transition={{ duration: 0.5, delay }}
       className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-shadow duration-300 break-inside-avoid print-break-inside-avoid w-full"
     >
-      <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wider mb-1">{title}</h3>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-wider">{title}</h3>
+        {title === 'Language' && onOpenVocabularyExtractor && (
+          <button
+            type="button"
+            onClick={onOpenVocabularyExtractor}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100 transition-colors no-print"
+          >
+            <FileText className="w-3.5 h-3.5" /> Vocabulary Extractor
+          </button>
+        )}
+      </div>
       <p className="text-xs text-zinc-500 mb-4">{subtext}</p>
       <ul className="space-y-3">
         <AnimatePresence>
           {visibleItems.map((item, index) => {
             const isHighlighted = highlightedInsights.includes(item.text);
+            const { cleanText, labels } = extractEvidenceLabels(item.text);
             return (
               <motion.li
                 key={index}
@@ -2143,23 +2381,31 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
                     ? 'ring-2 ring-indigo-500 bg-indigo-50 shadow-md transform scale-[1.02] z-10 text-indigo-950'
                     : item.isHighlyUnique 
                       ? 'bg-indigo-50/50 border border-indigo-100/50 text-indigo-950' 
-                      : item.isFromDocument
+                      : showDocumentInsights && item.isFromDocument
                         ? 'bg-emerald-50/30 border border-emerald-100/30 text-emerald-950'
                         : 'text-zinc-600 hover:bg-zinc-50'
                 }`}
               >
                 <span className="mr-3 mt-0.5 shrink-0 flex items-center gap-1.5">
                   {item.isHighlyUnique && <Sparkles className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-indigo-500'}`} />}
-                  {item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
-                  {!item.isHighlyUnique && !item.isFromDocument && <span className={isHighlighted ? 'text-indigo-600' : 'text-zinc-300'}>•</span>}
+                  {showDocumentInsights && item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
+                  {!item.isHighlyUnique && !(showDocumentInsights && item.isFromDocument) && <span className={isHighlighted ? 'text-indigo-600' : 'text-zinc-300'}>•</span>}
                 </span>
                 <span className="flex-1 pr-8">
-                  {item.text}
+                  {cleanText}
+                  {labels.map((label) => (
+                    <span key={`${index}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelClass(label)}`}>
+                      {label}
+                    </span>
+                  ))}
                   {item.confidenceLevel && (
                     <span className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${confidenceChipClass(item.confidenceLevel)}`}>
                       {item.confidenceLevel} confidence
                     </span>
                   )}
+                  <span className="inline-block ml-2 align-middle">
+                    <TrendLifecycleBadge stage={item.trendLifecycle} />
+                  </span>
                   {item.sourceType && (
                     <span className="inline-block ml-2 px-1.5 py-0.5 bg-zinc-100 text-zinc-500 text-[10px] uppercase tracking-wider font-semibold rounded border border-zinc-200 align-middle">
                       {item.sourceType}

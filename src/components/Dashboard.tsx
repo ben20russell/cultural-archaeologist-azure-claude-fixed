@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import type { Variants } from 'motion/react';
 import { CulturalCard } from './CulturalCard';
 import { Sparkles, Brain, Heart, Zap, Users, TrendingUp, BookOpen, Eye } from 'lucide-react';
 
@@ -68,7 +69,7 @@ export function Dashboard({ onCardClick }: DashboardProps) {
     },
   ];
 
-  const container = {
+  const container: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -79,9 +80,9 @@ export function Dashboard({ onCardClick }: DashboardProps) {
     },
   };
 
-  const item = {
+  const item: Variants = {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
+    show: { opacity: 1, y: 0, transition: { duration: 0.5 } },
   };
 
   return (

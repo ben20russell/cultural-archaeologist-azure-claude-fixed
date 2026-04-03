@@ -6,9 +6,10 @@ import { z } from "zod";
 export interface MatrixItem {
   text: string;
   isHighlyUnique: boolean;
-  isFromDocument?: boolean;
+  isFromDocument?: boolean | null;
   sourceType?: string;
   confidenceLevel?: 'low' | 'medium' | 'high';
+  trendLifecycle?: 'emerging' | 'peaking' | 'declining';
   deepDive?: DeepDiveReport;
 }
 
@@ -39,6 +40,10 @@ export interface CulturalMatrix {
   contradictions: MatrixItem[];
   community: MatrixItem[];
   influencers: MatrixItem[];
+  vocabulary?: {
+    wordsTheyUse: string[];
+    wordsToAvoid: string[];
+  };
   sources: Source[];
 }
 
@@ -718,17 +723,38 @@ function sanitizeBrandDeepDiveReport(report: BrandDeepDiveReport): BrandDeepDive
   };
 }
 
-function sanitizeCulturalMatrix(matrix: CulturalMatrix): CulturalMatrix {
+function sanitizeCulturalMatrix(matrix: CulturalMatrix, hasUploadedDocuments: boolean): CulturalMatrix {
+  const stripEvidenceMarkers = (value: string): string =>
+    value
+      .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE)\]\s*/gi, '')
+      .trim();
+
+  const fallbackLifecycle = (confidence?: MatrixItem['confidenceLevel']): 'emerging' | 'peaking' | 'declining' => {
+    if (confidence === 'high') return 'peaking';
+    if (confidence === 'low') return 'emerging';
+    return 'declining';
+  };
+
   const normalizeItemConfidence = (item: MatrixItem): MatrixItem => ({
     ...item,
+    isFromDocument: hasUploadedDocuments ? item.isFromDocument === true : false,
     confidenceLevel:
       item.confidenceLevel === 'low' || item.confidenceLevel === 'high' || item.confidenceLevel === 'medium'
         ? item.confidenceLevel
         : 'medium',
+    trendLifecycle:
+      item.trendLifecycle === 'emerging' || item.trendLifecycle === 'peaking' || item.trendLifecycle === 'declining'
+        ? item.trendLifecycle
+        : fallbackLifecycle(item.confidenceLevel),
   });
 
   return {
     ...matrix,
+    demographics: {
+      age: stripEvidenceMarkers(matrix.demographics?.age || ''),
+      race: stripEvidenceMarkers(matrix.demographics?.race || ''),
+      gender: stripEvidenceMarkers(matrix.demographics?.gender || ''),
+    },
     moments: (matrix.moments || []).map(normalizeItemConfidence),
     beliefs: (matrix.beliefs || []).map(normalizeItemConfidence),
     tone: (matrix.tone || []).map(normalizeItemConfidence),
@@ -737,6 +763,16 @@ function sanitizeCulturalMatrix(matrix: CulturalMatrix): CulturalMatrix {
     contradictions: (matrix.contradictions || []).map(normalizeItemConfidence),
     community: (matrix.community || []).map(normalizeItemConfidence),
     influencers: (matrix.influencers || []).map(normalizeItemConfidence),
+    vocabulary: {
+      wordsTheyUse: (matrix.vocabulary?.wordsTheyUse || [])
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20),
+      wordsToAvoid: (matrix.vocabulary?.wordsToAvoid || [])
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20),
+    },
     sources: sanitizeSources(matrix.sources),
   };
 }
@@ -1370,6 +1406,7 @@ const MatrixItemSchema = z.object({
   isHighlyUnique: z.boolean().describe("Set to true ONLY if this insight is extremely unique to this specific audience/group when compared against a baseline audience of the same average age, race/ethnicity, and gender breakdown, but OUTSIDE of the specific brand, industry, or topic being analyzed."),
   sourceType: z.string().describe("The type of source this insight was derived from (e.g., 'Mainstream', 'Niche/Fringe', 'Topic-Specific', 'Alternative Media', 'Academic', 'Social Media', etc.)"),
   confidenceLevel: z.enum(['low', 'medium', 'high']).describe("Confidence in this specific insight based on evidence quality and recency. Use 'high' when strongly corroborated by reliable recent sources, 'medium' when plausible with partial support, and 'low' when signal is weak or emerging."),
+  trendLifecycle: z.enum(['emerging', 'peaking', 'declining']).describe("Position of this signal on the trend lifecycle S-curve. Use 'emerging' for early signals, 'peaking' for high adoption, and 'declining' for fading or replacement signals."),
   isFromDocument: z.boolean().nullable().describe("Set to true if this insight was derived from the attached documents.")
 });
 
@@ -1392,6 +1429,10 @@ const CulturalMatrixSchema = z.object({
   contradictions: z.array(MatrixItemSchema),
   community: z.array(MatrixItemSchema),
   influencers: z.array(MatrixItemSchema),
+  vocabulary: z.object({
+    wordsTheyUse: z.array(z.string()),
+    wordsToAvoid: z.array(z.string()),
+  }),
   sources: z.array(SourceSchema)
 });
 
@@ -1418,6 +1459,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
   const generationStr = generations && generations.length > 0
     ? `\n\nCRITICAL: You MUST restrict your research and insights ONLY to the following generations: ${generations.join(', ')}.`
     : "";
+  const hasUploadedDocuments = Boolean(files && files.length > 0);
   const filesStr = files && files.length > 0
     ? `\n\nI have attached some documents. Please use the information from these documents to help generate the results, in addition to your general knowledge and internet search. If an insight is derived from the attached documents, please set isFromDocument to true.`
     : "";
@@ -1442,6 +1484,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     CRITICAL: Within each category, you MUST order the observations by "potency" (i.e., the frequency and strength of the cultural signal), with the most potent observations first.
     CRITICAL: You are acting as a senior marketing strategist. The ideas and insights you bring MUST be new, exciting, contrarian, and something the client has likely never heard before. Avoid mainstream consensus and obvious observations. Focus on "weak signals", emerging fringe behaviors, counter-intuitive trends, and deep psychological drivers that are not widely discussed.
     CRITICAL: Each insight must include confidenceLevel = low | medium | high based on evidence quality and recency.
+    CRITICAL: Each insight must include trendLifecycle = emerging | peaking | declining based on your assessment of where the signal sits on an S-curve right now.
     
     Categorize the insights into:
     - MOMENTS: Context of the time. What external forces are shaping behaviour right now? (Current events, Social climate, Trends)
@@ -1452,6 +1495,10 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     - CONTRADICTIONS: What tensions or shifts are emerging in values or behaviors?
     - COMMUNITY: Who do people look to for identity or belonging?
     - INFLUENCERS: People who are shaping their beliefs & behavior.
+
+    Also provide a Vocabulary Extractor for copywriters with:
+    - wordsTheyUse: common words and terms this audience naturally uses.
+    - wordsToAvoid: words that feel inauthentic, corporate, or off-tone for this audience.
     
     Also provide a rough demographic breakdown (age, race, gender) for this audience in the context of the brand/category.
 
@@ -1493,7 +1540,9 @@ ${JSON.stringify(rawSignals)}
 Rules:
 - Keep each category 6-10 items when evidence supports it.
 - Use confidenceLevel rigorously.
+- Use trendLifecycle rigorously for each insight.
 - Label uncertain language in text fields with [KNOWN], [INFERRED], [SPECULATIVE].
+- For vocabulary lists, keep entries concise and practical for immediate copywriting use.
 - Ensure sources remain credible and recent, flagging stale evidence when necessary.`;
 
   const interpretedMatrix = await runStructuredCall({
@@ -1517,11 +1566,12 @@ Rules:
       isHighlyUnique: false,
       sourceType: 'Methodological challenge',
       confidenceLevel: 'low' as const,
+      trendLifecycle: 'emerging' as const,
       isFromDocument: false,
     },
   ].slice(0, 10);
 
-  const sanitized = sanitizeCulturalMatrix(interpretedMatrix);
+  const sanitized = sanitizeCulturalMatrix(interpretedMatrix, hasUploadedDocuments);
   updateSessionBrief('cultural', sanitized);
   return sanitized;
 }

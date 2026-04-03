@@ -1,3 +1,4 @@
+import { ProgressiveLoader } from './ProgressiveLoader';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import pptxgen from 'pptxgenjs';
 import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
+import { Accordion } from './Accordion';
 
 interface BrandDeepDivePageProps {
   onBack: () => void;
@@ -1271,10 +1273,16 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             className="px-8 py-3 bg-zinc-900 text-white rounded-2xl font-medium hover:bg-zinc-800 transition-colors disabled:opacity-60 inline-flex items-center gap-2 relative overflow-hidden"
           >
             {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Auditing Brand Systems... {Math.round(fakeProgress)}%
-              </>
+              <ProgressiveLoader
+                messages={[
+                  'Collecting brand ecosystem snapshots...',
+                  'Auditing logos, type, and color systems...',
+                  'Comparing visual distinctiveness...',
+                  'Drafting strategic visual guidance...',
+                ]}
+                showProgress
+                progress={fakeProgress}
+              />
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
@@ -1467,10 +1475,12 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                     <p>{profile.consistencyAssessment}</p>
                   </div>
                 </div>
-
                 {(() => {
                   const visuals = bestVisualsByBrand[profile.brandName];
-                  return visuals ? (
+                  const logoUrl = visuals?.deterministicLogoUrl;
+                  const logoFallbackChain = buildImageFallbackChain(logoUrl || '', profile.website).join('|');
+
+                  const visualReferenceCardsSection = visuals ? (
                     <div className="rounded-2xl border border-zinc-200 p-4">
                       <div className="flex items-center justify-between gap-3 mb-3">
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 inline-flex items-center gap-2">
@@ -1488,6 +1498,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                             visuals.method === 'screenshot'
                               ? 'w-full h-44 object-cover hover:brightness-95 transition-all bg-zinc-100'
                               : 'w-full h-44 object-contain bg-white p-3 transition-all';
+
                           return (
                             <figure key={cardKey} className="rounded-xl border border-zinc-200 bg-zinc-50 overflow-hidden hover:shadow-md transition-shadow relative">
                               {failureState && (
@@ -1530,128 +1541,205 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                       </div>
                     </div>
                   ) : null;
-                })()}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Logo System</h4>
-                    {(() => {
-                      const visuals = bestVisualsByBrand[profile.brandName];
-                      const logoUrl = visuals?.deterministicLogoUrl;
-                      const fallbackChain = buildImageFallbackChain(logoUrl || '', profile.website).join('|');
-                      return logoUrl ? (
+                  const logoSystemSection = (
+                    <div className="rounded-2xl border border-zinc-200 p-4">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Logo System</h4>
+                      {logoUrl ? (
                         <div className="mb-4 rounded-lg bg-zinc-50 p-3 flex items-center justify-center">
                           <img
                             src={logoUrl}
                             alt={`${profile.brandName} Logo`}
                             className="max-h-24 max-w-full object-contain"
-                            data-fallback-chain={fallbackChain}
+                            data-fallback-chain={logoFallbackChain}
                             onError={advanceImageFallback}
                           />
                         </div>
-                      ) : null;
-                    })()}
-                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Primary:</span> {profile.logo.mainLogo}</p>
-                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Wordmark:</span> {profile.logo.wordmarkLogotype}</p>
-                    <p className="text-sm text-zinc-700 mb-1 font-medium">Variations</p>
-                    {renderListOrFallback(profile.logo.logoVariations, 'No logo variations provided.')}
-                    <p className="text-sm text-zinc-700 mt-3 mb-1 font-medium">Symbols / Icons</p>
-                    {renderListOrFallback(profile.logo.symbolsIcons, 'No symbol or icon notes provided.')}
-                  </div>
+                      ) : null}
+                      <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Primary:</span> {profile.logo.mainLogo}</p>
+                      <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Wordmark:</span> {profile.logo.wordmarkLogotype}</p>
+                      <p className="text-sm text-zinc-700 mb-1 font-medium">Variations</p>
+                      {renderListOrFallback(profile.logo.logoVariations, 'No logo variations provided.')}
+                      <p className="text-sm text-zinc-700 mt-3 mb-1 font-medium">Symbols / Icons</p>
+                      {renderListOrFallback(profile.logo.symbolsIcons, 'No symbol or icon notes provided.')}
+                    </div>
+                  );
 
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
-                      <Type className="w-4 h-4" /> Typography
-                    </h4>
-                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Families:</span> {profile.typography.fontFamilies.join(', ')}</p>
-                    <p className="text-sm text-zinc-700"><span className="font-medium">H1:</span> {profile.typography.hierarchy.h1}</p>
-                    <p className="text-sm text-zinc-700"><span className="font-medium">H2:</span> {profile.typography.hierarchy.h2}</p>
-                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Body:</span> {profile.typography.hierarchy.body}</p>
-                    <p className="text-sm text-zinc-700 mb-1 font-medium">Usage Rules</p>
-                    {renderListOrFallback(profile.typography.usageRules, 'No typography usage rules provided.')}
-                  </div>
-                </div>
+                  const typographySection = (
+                    <div className="rounded-2xl border border-zinc-200 p-4">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
+                        <Type className="w-4 h-4" /> Typography
+                      </h4>
+                      <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Families:</span> {profile.typography.fontFamilies.join(', ')}</p>
+                      <p className="text-sm text-zinc-700"><span className="font-medium">H1:</span> {profile.typography.hierarchy.h1}</p>
+                      <p className="text-sm text-zinc-700"><span className="font-medium">H2:</span> {profile.typography.hierarchy.h2}</p>
+                      <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Body:</span> {profile.typography.hierarchy.body}</p>
+                      <p className="text-sm text-zinc-700 mb-1 font-medium">Usage Rules</p>
+                      {renderListOrFallback(profile.typography.usageRules, 'No typography usage rules provided.')}
+                    </div>
+                  );
 
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
-                      <Palette className="w-4 h-4" /> Primary Colors
-                    </h4>
-                    {profile.colorPalette.primaryColors.length > 0 ? (
-                      <ul className="space-y-2">{profile.colorPalette.primaryColors.map(renderColorSwatch)}</ul>
-                    ) : (
-                      <p className="text-sm text-zinc-500">No primary color values available.</p>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Accent Colors</h4>
-                    {profile.colorPalette.secondaryAccentColors.length > 0 ? (
-                      <ul className="space-y-2">{profile.colorPalette.secondaryAccentColors.map(renderColorSwatch)}</ul>
-                    ) : (
-                      <p className="text-sm text-zinc-500">No accent color values available.</p>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Neutrals</h4>
-                    {profile.colorPalette.neutrals.length > 0 ? (
-                      <ul className="space-y-2">{profile.colorPalette.neutrals.map(renderColorSwatch)}</ul>
-                    ) : (
-                      <p className="text-sm text-zinc-500">No neutral color values available.</p>
-                    )}
-                  </div>
-                </div>
+                  const colorPaletteSection = (
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                      <div className="rounded-2xl border border-zinc-200 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
+                          <Palette className="w-4 h-4" /> Primary Colors
+                        </h4>
+                        {profile.colorPalette.primaryColors.length > 0 ? (
+                          <ul className="space-y-2">{profile.colorPalette.primaryColors.map(renderColorSwatch)}</ul>
+                        ) : (
+                          <p className="text-sm text-zinc-500">No primary color values available.</p>
+                        )}
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Accent Colors</h4>
+                        {profile.colorPalette.secondaryAccentColors.length > 0 ? (
+                          <ul className="space-y-2">{profile.colorPalette.secondaryAccentColors.map(renderColorSwatch)}</ul>
+                        ) : (
+                          <p className="text-sm text-zinc-500">No accent color values available.</p>
+                        )}
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">Neutrals</h4>
+                        {profile.colorPalette.neutrals.length > 0 ? (
+                          <ul className="space-y-2">{profile.colorPalette.neutrals.map(renderColorSwatch)}</ul>
+                        ) : (
+                          <p className="text-sm text-zinc-500">No neutral color values available.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
 
-                <div className="rounded-2xl border border-zinc-200 p-4">
-                  <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4" /> Supporting Visual Elements
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-zinc-800 mb-1">Imagery Style</p>
-                      {renderListOrFallback(profile.supportingVisualElements.imageryStyle, 'No imagery style notes provided.')}
+                  const supportingVisualElementsSection = (
+                    <div className="rounded-2xl border border-zinc-200 p-4">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3 inline-flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4" /> Supporting Visual Elements
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-800 mb-1">Imagery Style</p>
+                          {renderListOrFallback(profile.supportingVisualElements.imageryStyle, 'No imagery style notes provided.')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-zinc-800 mb-1">Icons</p>
+                          {renderListOrFallback(profile.supportingVisualElements.icons, 'No icon notes provided.')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-zinc-800 mb-1">Patterns & Textures</p>
+                          {renderListOrFallback(profile.supportingVisualElements.patternsTextures, 'No pattern or texture notes provided.')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-zinc-800 mb-1">Shapes</p>
+                          {renderListOrFallback(profile.supportingVisualElements.shapes, 'No shape system notes provided.')}
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-sm font-medium text-zinc-800 mb-1">Data Visualization</p>
+                          {renderListOrFallback(profile.supportingVisualElements.dataVisualization, 'No data visualization notes provided.')}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-zinc-800 mb-1">Icons</p>
-                      {renderListOrFallback(profile.supportingVisualElements.icons, 'No icon notes provided.')}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-zinc-800 mb-1">Patterns & Textures</p>
-                      {renderListOrFallback(profile.supportingVisualElements.patternsTextures, 'No pattern or texture notes provided.')}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-zinc-800 mb-1">Shapes</p>
-                      {renderListOrFallback(profile.supportingVisualElements.shapes, 'No shape system notes provided.')}
-                    </div>
-                    <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-zinc-800 mb-1">Data Visualization</p>
-                      {renderListOrFallback(profile.supportingVisualElements.dataVisualization, 'No data visualization notes provided.')}
-                    </div>
-                  </div>
-                </div>
+                  );
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Distinctiveness</h4>
-                    <p className="text-sm text-zinc-700">{profile.distinctivenessAssessment}</p>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 p-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Per-Brand Sources</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.sources.map((source, idx) => (
-                        <a
-                          key={`${profile.brandName}-${idx}`}
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs bg-zinc-50 border border-zinc-200 hover:border-zinc-300 text-zinc-700 px-3 py-1.5 rounded-full"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span className="truncate max-w-[180px]">{source.title}</span>
-                        </a>
-                      ))}
+                  const assessmentAndSourcesSection = (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-2xl border border-zinc-200 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Distinctiveness</h4>
+                        <p className="text-sm text-zinc-700">{profile.distinctivenessAssessment}</p>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-2">Per-Brand Sources</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {profile.sources.map((source, idx) => (
+                            <a
+                              key={`${profile.brandName}-${idx}`}
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs bg-zinc-50 border border-zinc-200 hover:border-zinc-300 text-zinc-700 px-3 py-1.5 rounded-full"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span className="truncate max-w-[180px]">{source.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  );
+
+                  return (
+                    <>
+                      <div className="md:hidden">
+                        <Accordion
+                          items={[
+                            ...(visualReferenceCardsSection
+                              ? [
+                                  {
+                                    id: `${profile.brandName}-visual-reference-cards`,
+                                    title: (
+                                      <>
+                                        <ImageIcon className="w-4 h-4 text-indigo-500" /> Visual Reference Cards
+                                      </>
+                                    ),
+                                    content: visualReferenceCardsSection,
+                                  },
+                                ]
+                              : []),
+                            {
+                              id: `${profile.brandName}-logo-system`,
+                              title: 'Logo System',
+                              content: logoSystemSection,
+                            },
+                            {
+                              id: `${profile.brandName}-typography`,
+                              title: (
+                                <>
+                                  <Type className="w-4 h-4 text-indigo-500" /> Typography
+                                </>
+                              ),
+                              content: typographySection,
+                            },
+                            {
+                              id: `${profile.brandName}-color-palette`,
+                              title: (
+                                <>
+                                  <Palette className="w-4 h-4 text-indigo-500" /> Color Palette
+                                </>
+                              ),
+                              content: colorPaletteSection,
+                            },
+                            {
+                              id: `${profile.brandName}-supporting-visual-elements`,
+                              title: (
+                                <>
+                                  <ImageIcon className="w-4 h-4 text-indigo-500" /> Supporting Visual Elements
+                                </>
+                              ),
+                              content: supportingVisualElementsSection,
+                            },
+                            {
+                              id: `${profile.brandName}-assessment-sources`,
+                              title: 'Distinctiveness & Sources',
+                              content: assessmentAndSourcesSection,
+                            },
+                          ]}
+                        />
+                      </div>
+
+                      <div className="hidden md:block space-y-6">
+                        {visualReferenceCardsSection}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {logoSystemSection}
+                          {typographySection}
+                        </div>
+
+                        {colorPaletteSection}
+                        {supportingVisualElementsSection}
+                        {assessmentAndSourcesSection}
+                      </div>
+                    </>
+                  );
+                })()}
               </section>
             ))}
 

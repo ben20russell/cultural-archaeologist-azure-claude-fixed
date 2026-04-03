@@ -130,7 +130,7 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
 
-    const logo = await screen.findByAltText('Aesop Logo');
+    const [logo] = await screen.findAllByAltText('Aesop Logo');
     expect(logo).toHaveAttribute('src', expect.stringContaining('logo.clearbit.com'));
 
     fireEvent.error(logo);
