@@ -6,7 +6,7 @@ import { processImageForUI, type ProcessedImageResult } from './image-processing
 import { extractBrandImages, type BrandImagesResult } from './brand-images';
 
 const app = express();
-const PORT = Number(process.env.PORT || 3001);
+const PORT = 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -468,25 +468,8 @@ app.get('/api/brand-images', async (req, res) => {
   }
 });
 
-const startServer = (port: number, attempt = 0) => {
-  const server = app.listen(port, () => {
-    console.log(`🗄️ Admin server running at http://localhost:${port}`);
-    console.log(`📊 View searches at http://localhost:${port}/admin`);
-    console.log(`🖼️ Image proxy running at http://localhost:${port}/api/image-proxy`);
-  });
-
-  server.on('error', (error: NodeJS.ErrnoException) => {
-    const shouldRetry = error.code === 'EADDRINUSE' && !process.env.PORT && attempt < 5;
-    if (shouldRetry) {
-      const retryPort = port + 1;
-      console.warn(`Port ${port} is in use. Retrying on ${retryPort}...`);
-      startServer(retryPort, attempt + 1);
-      return;
-    }
-
-    console.error('Failed to start server:', error.message);
-    process.exit(1);
-  });
-};
-
-startServer(PORT);
+app.listen(PORT, () => {
+  console.log(`🗄️ Admin server running at http://localhost:${PORT}`);
+  console.log(`📊 View searches at http://localhost:${PORT}/admin`);
+  console.log(`🖼️ Image proxy running at http://localhost:${PORT}/api/image-proxy`);
+});
