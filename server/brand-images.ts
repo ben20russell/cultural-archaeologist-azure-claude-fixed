@@ -154,7 +154,7 @@ function extractLogoUrl($: any, baseUrl: URL): string | null {
   // Priority C: header/nav img with logo-like signal in src/alt/class
   const headerOrNavLogo = $('header img, nav img')
     .toArray()
-    .map((el) => {
+    .map((el: unknown) => {
       const src = $(el).attr('src') || $(el).attr('data-src') || '';
       const alt = $(el).attr('alt') || '';
       const cls = $(el).attr('class') || '';
@@ -162,7 +162,7 @@ function extractLogoUrl($: any, baseUrl: URL): string | null {
       if (!LOGO_HINT.test(ctx)) return null;
       return resolveSecureAbsoluteUrl(src, baseUrl);
     })
-    .find((url): url is string => Boolean(url));
+    .find((url: string | null): url is string => Boolean(url));
 
   if (headerOrNavLogo) return headerOrNavLogo;
 
