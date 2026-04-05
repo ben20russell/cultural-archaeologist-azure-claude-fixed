@@ -1344,7 +1344,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                 <button
                   type="button"
                   onClick={() => removeBrandRow(brand.id)}
-                  className="self-start md:self-auto px-3 py-3 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                  className="col-start-2 row-start-1 self-start md:col-start-auto md:row-start-auto md:self-auto px-3 py-3 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                   disabled={isLoading || brands.length === 1}
                   aria-label={`Remove brand ${idx + 1}`}
                 >
