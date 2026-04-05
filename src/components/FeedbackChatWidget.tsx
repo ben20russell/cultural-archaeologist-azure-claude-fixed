@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { Loader2, MessageSquareText, Send, X } from 'lucide-react';
 
 const API_BASE_URL =
   (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ||
   'http://localhost:3001';
 
-const MAX_MESSAGE_LENGTH = 4000;
+const MAX_MESSAGE_LENGTH = 2000;
 
 type SubmitState = {
   type: 'idle' | 'success' | 'error';
@@ -57,9 +58,7 @@ export function FeedbackChatWidget() {
         throw new Error(data?.error || 'Failed to submit feedback.');
       }
 
-      const successMessage = data?.emailSent
-        ? 'Thanks. Your message was saved to Google Sheets and emailed successfully.'
-        : 'Thanks. Your message was saved to Google Sheets.';
+      const successMessage = 'Thanks. Your feedback is greatly appreciated';
 
       setSubmitState({ type: 'success', message: successMessage });
       setMessage('');
@@ -71,8 +70,8 @@ export function FeedbackChatWidget() {
     }
   };
 
-  return (
-    <div className="fixed bottom-5 right-5 z-[130] pointer-events-auto no-print">
+  const widget = (
+    <div className="fixed bottom-5 right-5 z-[1000] pointer-events-auto no-print">
       <AnimatePresence>
         {isOpen && (
           <motion.section
@@ -84,8 +83,8 @@ export function FeedbackChatWidget() {
           >
             <header className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-zinc-900">Send Feedback</p>
-                <p className="text-xs text-zinc-500">Messages are saved and emailed to the owner.</p>
+                <p className="text-sm font-semibold text-zinc-900">Send Feedback Anonymously</p>
+                <p className="text-xs text-zinc-500">Messages are shared with administrator</p>
               </div>
               <button
                 type="button"
@@ -149,8 +148,14 @@ export function FeedbackChatWidget() {
         className="ml-auto inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-[0_14px_34px_-16px_rgba(0,0,0,0.45)]"
       >
         <MessageSquareText className="h-4 w-4 text-indigo-600" />
-        Feedback
+        Share Feedback
       </button>
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return widget;
+  }
+
+  return createPortal(widget, document.body);
 }

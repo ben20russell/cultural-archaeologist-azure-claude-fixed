@@ -2505,7 +2505,7 @@ export default function App() {
         )}
           </>
         )}
-        <FeedbackChatWidget />
+        {!showSplash && <FeedbackChatWidget />}
       </main>
 
       <footer className="relative z-10 py-6 text-center no-print">
