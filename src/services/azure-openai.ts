@@ -32,6 +32,7 @@ export interface Demographics {
 
 export interface CulturalMatrix {
   demographics: Demographics;
+  sociological_analysis: string;
   moments: MatrixItem[];
   beliefs: MatrixItem[];
   tone: MatrixItem[];
@@ -801,6 +802,7 @@ function sanitizeCulturalMatrix(matrix: CulturalMatrix, hasUploadedDocuments: bo
       race: stripEvidenceMarkers(matrix.demographics?.race || ''),
       gender: stripEvidenceMarkers(matrix.demographics?.gender || ''),
     },
+    sociological_analysis: stripEvidenceMarkers(matrix.sociological_analysis || ''),
     moments: (matrix.moments || []).map(normalizeItemConfidence),
     beliefs: (matrix.beliefs || []).map(normalizeItemConfidence),
     tone: (matrix.tone || []).map(normalizeItemConfidence),
@@ -1471,6 +1473,7 @@ const CulturalMatrixSchema = z.object({
     race: z.string(),
     gender: z.string()
   }),
+  sociological_analysis: z.string().describe("A concise two-paragraph sociological summary of the socio-economic, historical, and cultural forces shaping this audience."),
   moments: z.array(MatrixItemSchema),
   beliefs: z.array(MatrixItemSchema),
   tone: z.array(MatrixItemSchema),
@@ -1518,7 +1521,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     : "";
 
   const systemInstruction = composeSystemPrompt(
-    'You are an expert cultural strategist and marketer. Your goal is to provide deep, accurate, and actionable cultural insights for the requested audience based on recent data. Highlight results that are extremely unique to this audience by setting isHighlyUnique to true (comparing them against demographic peers who are NOT involved in this specific brand, industry, or topic).',
+    'You are an expert cultural strategist and marketer. Your goal is to provide deep, accurate, and actionable cultural insights for the requested audience based on recent data. Highlight results that are extremely unique to this audience by setting isHighlyUnique to true (comparing them against demographic peers who are NOT involved in this specific brand, industry, or topic). Before listing the final artifacts, you MUST write a two-paragraph sociological_analysis explaining the socio-economic, historical, and cultural forces shaping this specific audience, and use that summary to derive the final data points. Do not expose private chain-of-thought; provide only the concise sociological summary in the sociological_analysis field.',
     'cultural'
   );
 
@@ -1588,6 +1591,8 @@ Raw signals:
 ${JSON.stringify(rawSignals)}
 
 Rules:
+- Add a required sociological_analysis field before the category arrays. It must be exactly two paragraphs.
+- In sociological_analysis, summarize the socio-economic, historical, and cultural forces shaping the audience and use that summary to derive the final matrix.
 - Keep each category 6-10 items when evidence supports it.
 - Use confidenceLevel rigorously.
 - Use trendLifecycle rigorously for each insight.

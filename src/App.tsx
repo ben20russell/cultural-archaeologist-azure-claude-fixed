@@ -2405,6 +2405,31 @@ export default function App() {
                 </div>
               )}
 
+              {displayMatrix?.sociological_analysis && (
+                <div className="mb-8 no-print">
+                  <Accordion
+                    defaultOpenFirst={false}
+                    items={[
+                      {
+                        id: 'ai-reasoning',
+                        title: 'AI Reasoning',
+                        content: (
+                          <div className="space-y-3 text-sm leading-relaxed text-zinc-700">
+                            {displayMatrix.sociological_analysis
+                              .split(/\n\s*\n/)
+                              .map((paragraph) => paragraph.trim())
+                              .filter(Boolean)
+                              .map((paragraph, index) => (
+                                <p key={`reasoning-${index}`}>{paragraph}</p>
+                              ))}
+                          </div>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
                 <MatrixCard title="Moments" subtext="External forces shaping their behavior" items={displayMatrix?.moments || []} delay={0.1} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
                 <MatrixCard title="Beliefs" subtext="Values they’re operating from" items={displayMatrix?.beliefs || []} delay={0.2} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} />
