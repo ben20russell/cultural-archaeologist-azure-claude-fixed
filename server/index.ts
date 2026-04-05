@@ -17,7 +17,8 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.local'), quiet: true });
 dotenv.config({ quiet: true });
 
 const app = express();
-const PORT = 3001;
+const parsedPort = Number(process.env.PORT || 3001);
+const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));

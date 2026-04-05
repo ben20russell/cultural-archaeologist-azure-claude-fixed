@@ -1318,8 +1318,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
           <div className="space-y-3">
             {brands.map((brand, idx) => (
-              <div key={brand.id} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
-                <div className="relative">
+              <div key={brand.id} className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                <div className="relative md:col-auto">
                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                   <input
                     type="text"
@@ -1330,7 +1330,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                     disabled={isLoading}
                   />
                 </div>
-                <div className="relative">
+                <div className="relative col-span-2 md:col-span-1">
                   <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                   <input
                     type="text"
@@ -1344,7 +1344,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                 <button
                   type="button"
                   onClick={() => removeBrandRow(brand.id)}
-                  className="px-3 py-3 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                  className="self-start md:self-auto px-3 py-3 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                   disabled={isLoading || brands.length === 1}
                   aria-label={`Remove brand ${idx + 1}`}
                 >

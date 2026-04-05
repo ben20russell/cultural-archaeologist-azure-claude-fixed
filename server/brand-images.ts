@@ -234,7 +234,7 @@ function extractLogoUrl($: any, baseUrl: URL): string | null {
   }
 
   // Priority C: Header/nav images with logo hints.
-  $('header img, nav img').each((_, el) => {
+  $('header img, nav img').each((_: number, el: any) => {
     const src = $(el).attr('src') || $(el).attr('data-src') || '';
     const alt = $(el).attr('alt') || '';
     const cls = $(el).attr('class') || '';
@@ -249,7 +249,7 @@ function extractLogoUrl($: any, baseUrl: URL): string | null {
   });
 
   // Priority D: Any page image with strong logo hints.
-  $('img[alt*="logo" i], img[class*="logo" i], img[id*="logo" i]').each((_, el) => {
+  $('img[alt*="logo" i], img[class*="logo" i], img[id*="logo" i]').each((_: number, el: any) => {
     const src = $(el).attr('src') || $(el).attr('data-src') || '';
     const resolved = resolveSecureAbsoluteUrl(src, baseUrl);
     if (resolved) {
@@ -258,7 +258,7 @@ function extractLogoUrl($: any, baseUrl: URL): string | null {
   });
 
   // Priority E: Link rel values that explicitly mention logo.
-  $('link[rel*="logo" i]').each((_, el) => {
+  $('link[rel*="logo" i]').each((_: number, el: any) => {
     const href = $(el).attr('href') || '';
     const resolved = resolveSecureAbsoluteUrl(href, baseUrl);
     if (resolved) {
