@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.subheader-copy,
+.copyright-copy {
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
 @keyframes blob {
   0% { transform: translate(0px, 0px) scale(1); }
   33% { transform: translate(30px, -50px) scale(1.1); }

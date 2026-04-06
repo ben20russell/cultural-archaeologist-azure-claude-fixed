@@ -1341,7 +1341,7 @@ export default function App() {
             <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900 mb-3">
               Choose Your Research Experience
             </h2>
-            <p className="text-zinc-500 mb-10 text-base md:text-lg">
+            <p className="subheader-copy text-zinc-500 mb-10 text-base md:text-lg">
               Start with cultural intelligence or go straight into visual identity analysis.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1352,7 +1352,7 @@ export default function App() {
                 <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
                   <Search className="w-4 h-4" /> Cultural Archeologist
                 </div>
-                <p className="text-sm text-zinc-500">
+                <p className="subheader-copy text-sm text-zinc-500">
                   Generate cross-generational audience and culture insights.
                 </p>
               </button>
@@ -1363,7 +1363,7 @@ export default function App() {
                 <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
                   <Sparkles className="w-4 h-4" /> Visual Design Deep Dive
                 </div>
-                <p className="text-sm text-zinc-500">
+                <p className="subheader-copy text-sm text-zinc-500">
                   Compare logo systems, colors, typography, and visual identity cues.
                 </p>
               </button>
@@ -2617,9 +2617,9 @@ export default function App() {
 
       <footer className="relative z-10 py-6 text-center no-print">
         {activeExperience !== null && (
-          <p className="text-xs text-zinc-400">AI models can make mistakes. Always double check your work. Remember to think critically.</p>
+          <p className="subheader-copy text-xs text-zinc-400">AI models can make mistakes. Always double check your work. Remember to think critically.</p>
         )}
-        <p className="text-[10px] text-zinc-400 mt-1">© 2026 The Kapalaran Group LLC  | All rights reserved</p>
+        <p className="copyright-copy text-[10px] text-zinc-400 mt-1">© 2026 Brand Atlas by The Kapalaran Group LLC | All rights reserved</p>
       </footer>
     </div>
   );
@@ -2684,7 +2684,7 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
           </button>
         )}
       </div>
-      <p className="text-xs text-zinc-500 mb-4">{subtext}</p>
+      <p className="subheader-copy text-xs text-zinc-500 mb-4">{subtext}</p>
       <ul className="space-y-3">
         <AnimatePresence>
           {visibleItems.map((item, index) => {
