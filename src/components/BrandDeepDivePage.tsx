@@ -1251,7 +1251,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           onClick={onBack}
           className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
         >
-          <Search className="w-4 h-4" /> Cultural Archeologist
+          <Search className="w-4 h-4" /> Cultural Archaeologist
         </button>
         <button
           type="button"
@@ -1434,6 +1434,10 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         {error && <p className="text-sm text-red-500">{error}</p>}
       </motion.form>
 
+      <p className="text-xs text-zinc-400 text-center mt-3 select-none">
+        AI models can make mistakes. Always double check your work. Remember to think critically.
+      </p>
+
       </div>
 
       <AnimatePresence mode="wait">
@@ -1497,7 +1501,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
             <div className="lg:col-span-2 bg-indigo-50 rounded-3xl p-6 md:p-8 border border-indigo-100 shadow-sm no-print">
               <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                <Search className="w-6 h-6" /> Ask the Archeologist
+                <Search className="w-6 h-6" /> Ask the Archaeologist
               </h3>
               <p className="text-sm text-indigo-700/80 mb-4">
                 Ask a question about the current audit. If your prompt points out an inaccuracy, the report will be refreshed automatically.
@@ -1927,7 +1931,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         )}
       </AnimatePresence>
 
-      <section className="w-full max-w-4xl mx-auto mt-6 bg-white rounded-3xl border border-zinc-200 p-5">
+      <section className="w-full max-w-4xl mx-auto mt-10 bg-white rounded-3xl border border-zinc-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-5 h-5 text-zinc-400" />
             <h3 className="text-xl font-semibold text-zinc-900">Your Library</h3>

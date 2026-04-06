@@ -1148,7 +1148,7 @@ export async function generateDeepDive(
 ): Promise<DeepDiveReport> {
   const evidenceDigest = await gatherEvidenceForTopic(`Deep dive on insight: ${insight.text}`, 'cultural');
 
-  const prompt = `You are an expert Cultural Archeologist and Brand Strategist.
+  const prompt = `You are an expert Cultural Archaeologist and Brand Strategist.
   I am providing you with a specific cultural insight about the following audience:
   Audience: ${context.audience}
   Brand Context: ${context.brand}
@@ -1172,7 +1172,7 @@ export async function generateDeepDive(
     messages: [
       {
         role: 'system',
-        content: composeSystemPrompt('You are an expert Cultural Archeologist and Brand Strategist.', 'cultural'),
+        content: composeSystemPrompt('You are an expert Cultural Archaeologist and Brand Strategist.', 'cultural'),
       },
       { role: 'user', content: prompt },
     ],
@@ -1195,7 +1195,7 @@ export async function generateDeepDivesBatch(
   insights: MatrixItem[],
   context: { audience: string; brand: string; generations: string[]; topicFocus?: string }
 ): Promise<DeepDiveReport[]> {
-  const prompt = `You are an expert Cultural Archeologist and Brand Strategist.
+  const prompt = `You are an expert Cultural Archaeologist and Brand Strategist.
   I am providing you with a list of specific cultural insights about the following audience:
   Audience: ${context.audience}
   Brand Context: ${context.brand}
@@ -1217,7 +1217,7 @@ export async function generateDeepDivesBatch(
     messages: [
       {
         role: 'system',
-        content: composeSystemPrompt('You are an expert Cultural Archeologist and Brand Strategist.', 'cultural'),
+        content: composeSystemPrompt('You are an expert Cultural Archaeologist and Brand Strategist.', 'cultural'),
       },
       { role: 'user', content: prompt },
     ],
@@ -1530,7 +1530,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     'cultural'
   );
 
-  const prompt = `Generate a comprehensive cultural archeologist report for the following audience: "${audience}"${contextStr}.${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
+  const prompt = `Generate a comprehensive cultural archaeologist report for the following audience: "${audience}"${contextStr}.${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
     
     Ensure the research and context are recent (from the last couple of years, 2024-2026).
     CRITICAL: For each category, provide at least 6-10 highly detailed and specific insights to ensure a rich and comprehensive report.

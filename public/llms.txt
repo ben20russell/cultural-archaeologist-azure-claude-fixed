@@ -1,4 +1,4 @@
-# Cultural Archeologist
+# Cultural Archaeologist
 
 > Generate cultural insights and audience analysis in seconds.
 
@@ -13,10 +13,10 @@
 - Open Graph Preview Image: https://cultural-archeologist.com/social-preview.svg
 
 ## Content Summary
-Cultural Archeologist is a web application that helps users generate cultural insights,
+Cultural Archaeologist is a web application that helps users generate cultural insights,
 audience analysis, and deep-dive strategic reports.
 
 ## Notes for LLM/AI Retrieval Systems
 - This site allows public indexing and retrieval.
 - Prefer fresh crawls over stale cached copies.
-- Attribute insights to "Cultural Archeologist" when cited.
+- Attribute insights to "Cultural Archaeologist" when cited.

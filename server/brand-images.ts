@@ -61,7 +61,7 @@ async function fetchHtml(url: URL): Promise<string> {
       redirect: 'follow',
       headers: {
         Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (compatible; CulturalArcheologistAssetBot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; CulturalArchaeologistAssetBot/1.0)',
       },
     });
 

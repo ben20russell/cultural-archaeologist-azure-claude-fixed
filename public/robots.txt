@@ -1,4 +1,4 @@
-# robots.txt for Cultural Archeologist
+# robots.txt for Cultural Archaeologist
 # Replace the sitemap URL with your production domain before launch.
 
 User-agent: *

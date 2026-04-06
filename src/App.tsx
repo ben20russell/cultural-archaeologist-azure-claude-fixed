@@ -668,7 +668,7 @@ export default function App() {
       if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
         setError('You exceeded your current API quota. Please check your plan and billing details.');
       } else {
-        setError('Failed to generate cultural archeologist report. Please try again.');
+        setError('Failed to generate cultural archaeologist report. Please try again.');
       }
     } finally {
       setFakeProgress(100);
@@ -850,7 +850,7 @@ export default function App() {
 
     const cleanDemographics = sanitizeDemographics(matrix.demographics);
     
-    slide.addText("Cultural Archeologist", { x: 1, y: 1.5, w: 8, h: 1, fontSize: 44, bold: true, color: "18181B" });
+    slide.addText("Cultural Archaeologist", { x: 1, y: 1.5, w: 8, h: 1, fontSize: 44, bold: true, color: "18181B" });
     slide.addText(`Audience: ${matrixMeta.audience}`, { x: 1, y: 2.5, w: 8, h: 0.5, fontSize: 24, color: "4F46E5", bold: true });
     
     let currentY = 3.2;
@@ -1001,7 +1001,7 @@ export default function App() {
   const exportToPPTX = () => {
     const pres = generatePPTX();
     if (pres) {
-      pres.writeFile({ fileName: `${matrixMeta?.audience.replace(/\s+/g, '_')}_Cultural_Archeologist.pptx` });
+      pres.writeFile({ fileName: `${matrixMeta?.audience.replace(/\s+/g, '_')}_Cultural_Archaeologist.pptx` });
     }
   };
 
@@ -1050,7 +1050,7 @@ export default function App() {
         
         // Title Page
         let y = margin + 10;
-        y = addWrappedText("Cultural Archeologist Report", margin, y, 24, true, [24, 24, 27]);
+        y = addWrappedText("Cultural Archaeologist Report", margin, y, 24, true, [24, 24, 27]);
         y += 10;
         
         y = addWrappedText(`Audience: ${matrixMeta.audience}`, margin, y, 16, true, [79, 70, 229]);
@@ -1133,7 +1133,7 @@ export default function App() {
           });
         });
         
-        doc.save(`${matrixMeta?.audience.replace(/\s+/g, '_')}_Cultural_Archeologist.pdf`);
+        doc.save(`${matrixMeta?.audience.replace(/\s+/g, '_')}_Cultural_Archaeologist.pdf`);
         setToast("PDF exported successfully!");
       } catch (err) {
         console.error("Failed to generate PDF:", err);
@@ -1175,7 +1175,7 @@ export default function App() {
             const blob = await pres.write({ outputType: 'blob' }) as Blob;
             
             const metadata = {
-              name: `${matrixMeta?.audience} - Cultural Archeologist`,
+              name: `${matrixMeta?.audience} - Cultural Archaeologist`,
               mimeType: 'application/vnd.google-apps.presentation'
             };
             
@@ -1241,7 +1241,7 @@ export default function App() {
           <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <Sparkles className="w-8 h-8" />
           </div>
-          <h1 className="text-3xl font-bold mb-4 text-zinc-900">Welcome to Cultural Archeologist</h1>
+          <h1 className="text-3xl font-bold mb-4 text-zinc-900">Welcome to Cultural Archaeologist</h1>
           <p className="text-zinc-600 mb-8 text-lg">
             To use this application, please connect your Gemini account. This ensures you have access to the latest models and features.
           </p>
@@ -1350,7 +1350,7 @@ export default function App() {
                 className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
               >
                 <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
-                  <Search className="w-4 h-4" /> Cultural Archeologist
+                  <Search className="w-4 h-4" /> Cultural Archaeologist
                 </div>
                 <p className="subheader-copy text-sm text-zinc-500">
                   Generate cross-generational audience and culture insights.
@@ -1755,7 +1755,7 @@ export default function App() {
               <Search className="w-5 h-5 text-indigo-500" />
             </div>
             <h1 className="text-4xl md:text-6xl font-medium tracking-tight text-zinc-900 mb-6 select-none">
-              Cultural <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archeologist</span>
+              Cultural <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archaeologist</span>
             </h1>
             <p className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed select-none">
               Deep dive into any culture or audience.
@@ -2120,6 +2120,10 @@ export default function App() {
                 </div>
               )}
             </button>
+
+            <p className="subheader-copy text-xs text-zinc-400 text-center mt-2">
+              AI models can make mistakes. Always double check your work. Remember to think critically.
+            </p>
             
             {error && (
               <p className="text-red-500 text-sm mt-2">{error}</p>
@@ -2249,7 +2253,7 @@ export default function App() {
               {/* Matrix Search Tool */}
               <div className="mb-10 bg-indigo-50 rounded-3xl p-6 md:p-8 border border-indigo-100 shadow-sm no-print">
                 <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                  <Search className="w-6 h-6" /> Ask the Archeologist
+                  <Search className="w-6 h-6" /> Ask the Archaeologist
                 </h3>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
@@ -2616,9 +2620,6 @@ export default function App() {
       </main>
 
       <footer className="relative z-10 py-6 text-center no-print">
-        {activeExperience !== null && (
-          <p className="subheader-copy text-xs text-zinc-400">AI models can make mistakes. Always double check your work. Remember to think critically.</p>
-        )}
         <p className="copyright-copy text-[10px] text-zinc-400 mt-1">© 2026 Brand Atlas by The Kapalaran Group LLC | All rights reserved</p>
       </footer>
     </div>

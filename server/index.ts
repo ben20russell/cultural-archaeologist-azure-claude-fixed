@@ -410,7 +410,7 @@ app.get('/api/image-proxy', async (req, res) => {
       signal: controller.signal,
       headers: {
         Accept: 'image/*,*/*;q=0.8',
-        'User-Agent': 'BrandArcheologistImageProxy/1.0',
+        'User-Agent': 'BrandArchaeologistImageProxy/1.0',
       },
       redirect: 'follow',
     });

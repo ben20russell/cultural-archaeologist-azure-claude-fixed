@@ -34,7 +34,7 @@ async function fetchHtml(url: string): Promise<string> {
       signal: controller.signal,
       headers: {
         Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'User-Agent': 'CulturalArcheologistPrecisionIndexer/1.0',
+        'User-Agent': 'CulturalArchaeologistPrecisionIndexer/1.0',
       },
       redirect: 'follow',
       cache: 'no-store',

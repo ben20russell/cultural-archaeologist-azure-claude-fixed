@@ -89,7 +89,7 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
 
-    await screen.findByText(/Ask the Archeologist/i);
+    await screen.findByText(/Ask the Archaeologist/i);
 
     expect(screen.queryByRole('button', { name: /rescan/i })).not.toBeInTheDocument();
 
@@ -155,7 +155,7 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
 
-    await screen.findByText(/Ask the Archeologist/i);
+    await screen.findByText(/Ask the Archaeologist/i);
 
     fireEvent.click(screen.getAllByTestId('compare-trigger-typography')[0]);
 

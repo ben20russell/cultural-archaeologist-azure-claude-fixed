@@ -1,5 +1,5 @@
 /**
- * Image-processing utility for the Cultural Archeologist – Brand Deep Dive.
+ * Image-processing utility for the Cultural Archaeologist – Brand Deep Dive.
  *
  * processImageForUI(imageUrl)
  *   1. Fetches the image as a Buffer.
@@ -51,7 +51,7 @@ export async function processImageForUI(imageUrl: string): Promise<ProcessedImag
       signal: controller.signal,
       headers: {
         Accept: 'image/*,*/*;q=0.8',
-        'User-Agent': 'CulturalArcheologistImageProcessor/1.0',
+        'User-Agent': 'CulturalArchaeologistImageProcessor/1.0',
       },
       redirect: 'follow',
     });

@@ -81,7 +81,7 @@ async function fetchHotPosts(subreddit: string, limit: number): Promise<RedditPo
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        'User-Agent': 'CulturalArcheologistSubredditFetcher/1.0',
+        'User-Agent': 'CulturalArchaeologistSubredditFetcher/1.0',
       },
       cache: 'no-store',
     });

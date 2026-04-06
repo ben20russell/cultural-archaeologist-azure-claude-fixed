@@ -1,8 +1,8 @@
-# Brand Archeologist
+# Brand Archaeologist
 
-Brand Archeologist is a Vite + React research app with two primary workflows:
+Brand Archaeologist is a Vite + React research app with two primary workflows:
 
-- Cultural Archeologist: generate audience and culture insights.
+- Cultural Archaeologist: generate audience and culture insights.
 - Visual Design Deep Dive: compare brand identity systems and visual signals.
 
 The workspace also includes a small Express server used for persisted searches.
