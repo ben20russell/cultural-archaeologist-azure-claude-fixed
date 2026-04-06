@@ -4,7 +4,7 @@
 <radialGradient id="blobA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(180 88) rotate(12) scale(560 320)"><stop offset="0" stop-color="#99D7FF" stop-opacity="0.30"/><stop offset="1" stop-color="#99D7FF" stop-opacity="0"/></radialGradient>
 <radialGradient id="blobB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1020 120) rotate(-12) scale(620 340)"><stop offset="0" stop-color="#FFD08A" stop-opacity="0.30"/><stop offset="1" stop-color="#FFD08A" stop-opacity="0"/></radialGradient>
 <radialGradient id="blobC" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(920 522) rotate(-8) scale(620 260)"><stop offset="0" stop-color="#9AE7C5" stop-opacity="0.22"/><stop offset="1" stop-color="#9AE7C5" stop-opacity="0"/></radialGradient>
-<linearGradient id="brandGradient" x1="500" y1="0" x2="1110" y2="0"><stop offset="0" stop-color="#0EA5E9"/><stop offset="1" stop-color="#F59E0B"/></linearGradient>
+<linearGradient id="brandGradient" x1="500" y1="0" x2="1110" y2="0"><stop offset="0" stop-color="#6366F1"/><stop offset="1" stop-color="#D946EF"/></linearGradient>
 <linearGradient id="iconGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0284C7"/><stop offset="0.55" stop-color="#0EA5E9"/><stop offset="1" stop-color="#F59E0B"/></linearGradient>
 <filter id="noise" x="0" y="0" width="1200" height="630"><feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="1" seed="6" result="noise"/><feComponentTransfer><feFuncA type="table" tableValues="0 0 0.014 0.03"/></feComponentTransfer></filter>
 </defs>
@@ -14,8 +14,8 @@
 <rect width="1200" height="630" fill="url(#blobC)"/>
 <circle cx="600" cy="158" r="19" stroke="url(#iconGradient)" stroke-width="7" fill="none"/>
 <line x1="614" y1="172" x2="632" y2="190" stroke="url(#iconGradient)" stroke-width="7" stroke-linecap="round"/>
-<text x="130" y="302" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="108" font-weight="600" letter-spacing="-2.4" fill="#0F172A">Cultural</text>
-<text x="508" y="302" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="108" font-weight="600" letter-spacing="-2.4" fill="url(#brandGradient)">Archeologist</text>
+<text x="180" y="302" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="108" font-weight="600" letter-spacing="-2.4" fill="#0F172A">Brand</text>
+<text x="472" y="302" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="108" font-weight="600" letter-spacing="-2.4" fill="url(#brandGradient)">Atlas</text>
 <text x="600" y="376" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="38" font-weight="540" fill="#374151">Decode audiences, culture, and brand identity in minutes.</text>
 <text x="600" y="430" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, Avenir Next, sans-serif" font-size="29" font-weight="500" fill="#6B7280">AI-assisted cultural intelligence and visual deep dives.</text>
 <rect x="36" y="34" width="1128" height="562" rx="34" stroke="#CBD5E1" stroke-opacity="0.56" fill="none"/>

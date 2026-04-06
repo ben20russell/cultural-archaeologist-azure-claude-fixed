@@ -1290,7 +1290,7 @@ export default function App() {
             >
               <Sparkles className="w-7 h-7 text-indigo-600 mb-8" />
               <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-zinc-950 mb-5 select-none">
-                 Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Archeologist</span>
+                  Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
               </h1>
               <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/80 px-3 py-1.5 text-xs font-medium text-zinc-600 shadow-sm">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-500" />
@@ -1335,10 +1335,13 @@ export default function App() {
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6 mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
-            <h2 className="text-4xl md:text-5xl font-medium tracking-tight text-zinc-900 mb-4">
+            <h1 className="text-5xl md:text-7xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
+              Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
+            </h1>
+            <h2 className="text-xl md:text-2xl font-medium tracking-tight text-zinc-900 mb-3">
               Choose Your Research Experience
             </h2>
-            <p className="text-zinc-500 mb-10 text-lg">
+            <p className="text-zinc-500 mb-10 text-base md:text-lg">
               Start with cultural intelligence or go straight into visual identity analysis.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

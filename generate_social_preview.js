@@ -25,8 +25,8 @@ out += `<stop offset="0" stop-color="#9AE7C5" stop-opacity="0.22"/>`;
 out += `<stop offset="1" stop-color="#9AE7C5" stop-opacity="0"/>`;
 out += `</radialGradient>\n`;
 out += `<linearGradient id="brandGradient" x1="500" y1="0" x2="1110" y2="0">`;
-out += `<stop offset="0" stop-color="#0EA5E9"/>`;
-out += `<stop offset="1" stop-color="#F59E0B"/>`;
+out += `<stop offset="0" stop-color="#6366F1"/>`;
+out += `<stop offset="1" stop-color="#D946EF"/>`;
 out += `</linearGradient>\n`;
 out += `<linearGradient id="iconGradient" x1="0" y1="0" x2="1" y2="1">`;
 out += `<stop offset="0" stop-color="#0284C7"/>`;
@@ -49,8 +49,8 @@ out += `<circle cx="600" cy="158" r="19" stroke="url(#iconGradient)" stroke-widt
 out += `<line x1="614" y1="172" x2="632" y2="190" stroke="url(#iconGradient)" stroke-width="7" stroke-linecap="round"/>\n`;
 
 // Header copy (main-page look and feel).
-out += `<text x="130" y="302" font-family="${FONT}" font-size="108" font-weight="600" letter-spacing="-2.4" fill="#0F172A">Cultural</text>\n`;
-out += `<text x="508" y="302" font-family="${FONT}" font-size="108" font-weight="600" letter-spacing="-2.4" fill="url(#brandGradient)">Archeologist</text>\n`;
+out += `<text x="180" y="302" font-family="${FONT}" font-size="108" font-weight="600" letter-spacing="-2.4" fill="#0F172A">Brand</text>\n`;
+out += `<text x="472" y="302" font-family="${FONT}" font-size="108" font-weight="600" letter-spacing="-2.4" fill="url(#brandGradient)">Atlas</text>\n`;
 
 // Descriptor text for sharing cards.
 out += `<text x="600" y="376" text-anchor="middle" font-family="${FONT}" font-size="38" font-weight="540" fill="#374151">Decode audiences, culture, and brand identity in minutes.</text>\n`;
