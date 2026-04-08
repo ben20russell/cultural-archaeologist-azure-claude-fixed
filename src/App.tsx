@@ -1375,7 +1375,7 @@ export default function App() {
             <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
               Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
             </h1>
-            <h2 className="text-5xl md:text-6xl font-semibold tracking-tight text-zinc-900 mb-3">
+            <h2 className="text-4xl md:text-5xl font-semibold tracking-tight text-zinc-900 mb-3">
               Choose Your Research Experience
             </h2>
             <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
