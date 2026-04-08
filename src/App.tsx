@@ -1361,7 +1361,7 @@ export default function App() {
         <div className="absolute -bottom-[10%] left-[20%] w-[60%] h-[60%] rounded-full bg-fuchsia-200/20 blur-[120px]" />
       </div>
       
-      <main className={`relative z-10 flex-1 w-full max-w-6xl mx-auto px-6 ${activeExperience === null ? 'py-6 md:py-10' : 'py-16 md:py-24'}`}>
+      <main className={`relative z-10 flex-1 w-full max-w-6xl mx-auto px-6 ${activeExperience === null ? 'pt-4 pb-16 md:pt-6 md:pb-24' : 'py-16 md:py-24'}`}>
         {activeExperience === null && (
           <motion.section
             initial={{ opacity: 0, y: 14 }}
