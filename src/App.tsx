@@ -1372,10 +1372,10 @@ export default function App() {
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6 mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
-            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
+            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
               Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
             </h1>
-            <h2 className="text-5xl md:text-7xl font-medium tracking-tight text-zinc-900 mb-3">
+            <h2 className="text-5xl md:text-6xl font-semibold tracking-tight text-zinc-900 mb-3">
               Choose Your Research Experience
             </h2>
             <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
