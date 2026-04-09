@@ -1457,7 +1457,7 @@ export default function App() {
                     </span>
                   </div>
                   <p className="subheader-copy text-sm text-zinc-500">
-                    Compare the design systems of multiplte brands: logos, colors, typography, and visual identity cues.
+                    Compare design systems across multiple brands: logos, colors, typography, visual identity cues.
                   </p>
                 </button>
               </div>
