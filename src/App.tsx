@@ -1379,7 +1379,7 @@ export default function App() {
               Choose Your Research Experience
             </h2>
             <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
-              Start with cultural intelligence or go straight into visual identity analysis.
+              Start with a cultural deep dive or explore a visual identities analysis.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
