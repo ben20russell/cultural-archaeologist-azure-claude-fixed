@@ -1443,7 +1443,7 @@ export default function App() {
                     <Search className="w-4 h-4" /> Cultural Archaeologist
                   </div>
                   <p className="subheader-copy text-sm text-zinc-500">
-                    Generate cross-generational audience and culture insights.
+                    Generate distinct insights about any audience through a cultural lens.
                   </p>
                 </button>
                 <button
@@ -1457,7 +1457,7 @@ export default function App() {
                     </span>
                   </div>
                   <p className="subheader-copy text-sm text-zinc-500">
-                    Compare logo systems, colors, typography, and visual identity cues.
+                    Compare the design systems of multiplte brands: logos, colors, typography, and visual identity cues.
                   </p>
                 </button>
               </div>
