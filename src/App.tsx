@@ -152,6 +152,44 @@ const extractEvidenceTags = (value: string): { cleanText: string; labels: Eviden
   return { cleanText, labels };
 };
 
+type AskAnswerSection = {
+  title?: string;
+  text: string;
+  labels: EvidenceTagLabel[];
+};
+
+const structureAskAnswer = (value: string): AskAnswerSection[] => {
+  if (!value || !value.trim()) {
+    return [];
+  }
+
+  const normalized = value.replace(/\r\n/g, '\n').trim();
+  const byOptions = normalized
+    .split(/(?=\bOption\s+\d+\s*:)/gi)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const baseChunks = byOptions.length > 1 ? byOptions : normalized.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+
+  return baseChunks.map((chunk) => {
+    const optionMatch = chunk.match(/^(Option\s+\d+)\s*:\s*(.*)$/is);
+    if (optionMatch) {
+      const parsed = extractEvidenceTags(optionMatch[2].trim());
+      return {
+        title: optionMatch[1],
+        text: parsed.cleanText,
+        labels: parsed.labels,
+      };
+    }
+
+    const parsed = extractEvidenceTags(chunk);
+    return {
+      text: parsed.cleanText,
+      labels: parsed.labels,
+    };
+  });
+};
+
 const evidenceLabelChipClass = (label: EvidenceTagLabel): string => {
   if (label === 'analogy') {
     return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
@@ -362,6 +400,7 @@ export default function App() {
   const displayMatrix = filteredMatrix || matrix;
   const hasVisibleInsights =
     !!displayMatrix && MATRIX_INSIGHT_KEYS.some((key) => (displayMatrix[key] || []).length > 0);
+  const structuredMatrixAnswer = useMemo(() => structureAskAnswer(matrixAnswer), [matrixAnswer]);
 
   const loadSavedMatrix = (sm: SavedMatrix, shouldScroll = false) => {
     setBrand(sm.brand);
@@ -1413,6 +1452,9 @@ export default function App() {
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
                     <Sparkles className="w-4 h-4" /> Visual Design Deep Dive
+                    <span className="inline-flex items-center rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                      Beta
+                    </span>
                   </div>
                   <p className="subheader-copy text-sm text-zinc-500">
                     Compare logo systems, colors, typography, and visual identity cues.
@@ -2417,7 +2459,27 @@ export default function App() {
                     animate={{ opacity: 1, y: 0 }}
                     className="mt-6 p-6 bg-white rounded-2xl border border-indigo-100 text-zinc-700 shadow-sm leading-relaxed"
                   >
-                    <p>{matrixAnswer}</p>
+                    <div className="space-y-4">
+                      {structuredMatrixAnswer.length > 0 ? (
+                        structuredMatrixAnswer.map((section, index) => (
+                          <div key={`ask-section-${index}`} className={section.title ? 'rounded-xl border border-zinc-200 bg-zinc-50 p-4' : ''}>
+                            {section.title && (
+                              <h4 className="text-sm font-semibold text-zinc-900 mb-2">{section.title}</h4>
+                            )}
+                            <p className="text-zinc-700 text-[15px] leading-7 whitespace-pre-wrap">
+                              {section.text}
+                              {section.labels.map((label) => (
+                                <span key={`ask-label-${index}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
+                                  {label}
+                                </span>
+                              ))}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-zinc-700 text-[15px] leading-7 whitespace-pre-wrap">{matrixAnswer}</p>
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </div>
