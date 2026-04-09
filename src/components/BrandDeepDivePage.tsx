@@ -74,13 +74,6 @@ const getImageProxyBaseUrl = (): string => {
     return configured.replace(/\/$/, '');
   }
 
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:3001';
-    }
-  }
-
   return '';
 };
 
@@ -178,9 +171,33 @@ function buildLargeLogoCandidateUrls(website?: string | null): string[] {
       origin ? { label: 'Android Chrome Icon Alt', url: `${origin}/android-chrome-192x192.png` } : null,
       origin ? { label: 'Favicon SVG', url: `${origin}/favicon.svg` } : null,
       origin ? { label: 'Favicon PNG', url: `${origin}/favicon.png` } : null,
+      origin ? { label: 'Favicon ICO', url: `${origin}/favicon.ico` } : null,
+      origin ? { label: 'Apple Icon 180', url: `${origin}/apple-touch-icon-180x180.png` } : null,
       deterministicLogo ? { label: 'Fallback Logo Asset', url: deterministicLogo } : null,
     ].filter((card): card is BrandVisualCard => Boolean(card))
   ).map((card) => card.url);
+}
+
+function buildLargeVisualCandidateUrls(website?: string | null): string[] {
+  const origin = getOriginFromUrl(website);
+  if (!origin) return [];
+
+  return dedupeVisualCards([
+    { label: 'Open Graph Image', url: `${origin}/og-image.png` },
+    { label: 'Open Graph Image JPG', url: `${origin}/og-image.jpg` },
+    { label: 'Social Preview', url: `${origin}/social-preview.png` },
+    { label: 'Social Card', url: `${origin}/social-card.png` },
+    { label: 'Hero Image', url: `${origin}/hero.jpg` },
+    { label: 'Hero Image PNG', url: `${origin}/hero.png` },
+    { label: 'Home Hero', url: `${origin}/images/hero.jpg` },
+    { label: 'Home Hero PNG', url: `${origin}/images/hero.png` },
+    { label: 'Banner', url: `${origin}/images/banner.jpg` },
+    { label: 'Banner PNG', url: `${origin}/images/banner.png` },
+    { label: 'Share Image', url: `${origin}/images/share.jpg` },
+    { label: 'Share Image PNG', url: `${origin}/images/share.png` },
+    { label: 'Homepage Image', url: `${origin}/images/homepage.jpg` },
+    { label: 'Homepage Image PNG', url: `${origin}/images/homepage.png` },
+  ]).map((card) => card.url);
 }
 
 function buildImageFallbackChain(primaryUrl: string, website?: string | null): string[] {
@@ -194,13 +211,15 @@ function buildVisualPreviewFallbackChain(primaryUrl: string, website?: string | 
   const normalizedPrimary = normalizeHttpUrl(primaryUrl);
   const normalizedWebsite = normalizeHttpUrl(website);
   const screenshotFallbacks = normalizedWebsite
-    ? [buildScreenshotPreviewUrl(normalizedWebsite), buildWordpressScreenshotUrl(normalizedWebsite)]
+    ? [buildWordpressScreenshotUrl(normalizedWebsite)]
     : [];
+  const visualAssetFallbacks = buildLargeVisualCandidateUrls(website);
 
   return dedupeVisualCards(
     [
       ...buildImageFallbackChain(primaryUrl, website).map((url) => ({ label: 'fallback', url })),
       ...screenshotFallbacks.map((url) => ({ label: 'preview', url })),
+      ...visualAssetFallbacks.map((url) => ({ label: 'visual', url })),
     ]
   )
     .map((card) => withImageProxy(card.url))
@@ -334,8 +353,9 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [reportQuestion, setReportQuestion] = useState('');
   const [reportAnswer, setReportAnswer] = useState('');
   const [isSubmittingPrompt, setIsSubmittingPrompt] = useState(false);
+  const [isSearchControlsMinimized, setIsSearchControlsMinimized] = useState(false);
   const [bestVisualsByBrand, setBestVisualsByBrand] = useState<Record<string, BrandVisualSelection>>({});
-  const [visualFailuresByCard, setVisualFailuresByCard] = useState<Record<string, { attempts: number; lastSource: string; isPlaceholder: boolean }>>({});
+  const [visualFailuresByCard, setVisualFailuresByCard] = useState<Record<string, { attempts: number; lastSource: string; isPlaceholder: boolean; hidden?: boolean; retried?: boolean }>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [, setToast] = useState<string | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedDeepDiveSearch[]>([]);
@@ -365,6 +385,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     setReport(null);
     setReportQuestion('');
     setReportAnswer('');
+    setIsSearchControlsMinimized(false);
     setBestVisualsByBrand({});
     setProcessedLogos({});
     requestedLogosRef.current.clear();
@@ -573,6 +594,17 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (report && !isLoading) {
+      setIsSearchControlsMinimized(true);
+      return;
+    }
+
+    if (!report) {
+      setIsSearchControlsMinimized(false);
+    }
+  }, [report, isLoading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowValidation(true);
@@ -587,6 +619,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
     if (normalizedBrands.length === 0) {
       setError('Please add at least one brand.');
+      return;
+    }
+
+    if (!analysisObjective.trim()) {
+      setError('Please provide a visual identity objective.');
       return;
     }
 
@@ -979,21 +1016,25 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           .filter((target) => Boolean(target.url))
       ).slice(0, 4);
 
+      const directVisualCards = dedupeVisualCards(
+        buildLargeVisualCandidateUrls(profile.website).map((url, idx) => ({
+          label: idx === 0 ? 'Website Visual' : `Website Visual ${idx + 1}`,
+          url: withImageProxy(url),
+          originalUrl: url,
+          status: 'fallback' as const,
+        }))
+      ).slice(0, 4);
+
       const screenshotCards = dedupeVisualCards(
-        screenshotTargets.flatMap((target) => [
-          {
+        [
+          ...screenshotTargets.map((target) => ({
             label: target.label,
-            url: withImageProxy(buildScreenshotPreviewUrl(target.url)),
-            originalUrl: buildScreenshotPreviewUrl(target.url),
-            status: 'ok' as const,
-          },
-          {
-            label: `${target.label} (Alt)`,
             url: withImageProxy(buildWordpressScreenshotUrl(target.url)),
             originalUrl: buildWordpressScreenshotUrl(target.url),
             status: 'ok' as const,
-          },
-        ])
+          })),
+          ...directVisualCards,
+        ]
       ).slice(0, 8);
 
       const candidates: Array<{ method: VisualMethod; images: BrandVisualCard[]; score: number }> = [];
@@ -1049,17 +1090,32 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     const target = event.currentTarget;
     const attemptedSource = target.currentSrc || target.src;
     advanceImageFallback(event);
+    const nextSource = target.currentSrc || target.src;
+    const retryAttempted = target.dataset.retryAttempted === 'true';
+
+    // If all fallback sources were exhausted, try one final cache-busted reload.
+    if (nextSource.startsWith('data:image/svg+xml') && !retryAttempted) {
+      const originalSource = target.dataset.originalSrc || attemptedSource;
+      if (originalSource && !originalSource.startsWith('data:image')) {
+        const retryUrl = `${originalSource}${originalSource.includes('?') ? '&' : '?'}retry=${Date.now()}`;
+        target.dataset.retryAttempted = 'true';
+        target.src = retryUrl;
+      }
+    }
 
     setVisualFailuresByCard((prev) => {
       const current = prev[cardKey];
-      const nextSource = target.currentSrc || target.src;
+      const effectiveNextSource = target.currentSrc || target.src;
+      const shouldHide = effectiveNextSource.startsWith('data:image/svg+xml') && retryAttempted;
 
       return {
         ...prev,
         [cardKey]: {
           attempts: (current?.attempts || 0) + 1,
           lastSource: getFailureSourceLabel(attemptedSource),
-          isPlaceholder: nextSource.startsWith('data:image/svg+xml'),
+          isPlaceholder: effectiveNextSource.startsWith('data:image/svg+xml'),
+          hidden: shouldHide,
+          retried: retryAttempted || current?.retried,
         },
       };
     });
@@ -1074,7 +1130,77 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     });
   };
 
-  const exportToPPTX = () => {
+  const exportImageCacheRef = useRef<Map<string, Promise<string | null>>>(new Map());
+
+  const fetchImageAsDataUrl = async (url?: string | null): Promise<string | null> => {
+    if (!url) return null;
+    if (url.startsWith('data:image')) return url;
+
+    const existing = exportImageCacheRef.current.get(url);
+    if (existing) {
+      return existing;
+    }
+
+    const pending = (async () => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          return null;
+        }
+
+        const blob = await response.blob();
+        return await new Promise<string | null>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      } catch {
+        return null;
+      }
+    })();
+
+    exportImageCacheRef.current.set(url, pending);
+    return pending;
+  };
+
+  const collectProfileExportImages = async (profile: BrandDeepDiveReport['brandProfiles'][number]) => {
+    const visuals = bestVisualsByBrand[profile.brandName];
+    const visibleVisualCards = (visuals?.images || []).filter((image, idx) => {
+      const failureState = visualFailuresByCard[`${profile.brandName}-visual-${idx}`];
+      return !failureState?.hidden;
+    });
+
+    const logoCandidates = [
+      processedLogos[profile.brandName]?.base64Placeholder || null,
+      logoImages[profile.brandName] || null,
+      visuals?.deterministicLogoUrl || null,
+    ].filter((candidate): candidate is string => Boolean(candidate));
+
+    let logoDataUrl: string | null = null;
+    for (const candidate of logoCandidates) {
+      logoDataUrl = await fetchImageAsDataUrl(candidate);
+      if (logoDataUrl) {
+        break;
+      }
+    }
+
+    const visualDataUrls: string[] = [];
+    for (const image of visibleVisualCards.slice(0, 3)) {
+      const dataUrl = await fetchImageAsDataUrl(image.url);
+      if (dataUrl) {
+        visualDataUrls.push(dataUrl);
+      }
+    }
+
+    return { logoDataUrl, visualDataUrls };
+  };
+
+  const getPdfImageFormat = (dataUrl: string): 'PNG' | 'JPEG' => {
+    return dataUrl.startsWith('data:image/jpeg') || dataUrl.startsWith('data:image/jpg') ? 'JPEG' : 'PNG';
+  };
+
+  const exportToPPTX = async () => {
     if (!report) return;
     setIsExporting(true);
     setToast('Generating PowerPoint...');
@@ -1091,7 +1217,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         titleSlide.addText(`Target Audience: ${targetAudience}`, { x: 0.5, y: 2.0, w: 9, h: 0.4, fontSize: 14, color: '52525B' });
       }
       titleSlide.addText(`Generated on ${new Date().toLocaleDateString()}`, { x: 0.5, y: 5.5, w: 9, h: 0.4, fontSize: 12, color: 'A1A1AA' });
-      report.brandProfiles.forEach((profile) => {
+      for (const profile of report.brandProfiles) {
+        const exportImages = await collectProfileExportImages(profile);
         const slide = pres.addSlide();
         slide.background = { color: 'FAFAFA' };
         slide.addText(profile.brandName, { x: 0.5, y: 0.3, w: 9, h: 0.5, fontSize: 32, bold: true, color: '18181B' });
@@ -1110,6 +1237,16 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         currentY += 0.3;
         slide.addText(`Wordmark: ${profile.logo.wordmarkLogotype}`, { x: 0.5, y: currentY, w: 4, h: 0.25, fontSize: 10, color: '3F3F46' });
         currentY += 0.4;
+        if (exportImages.logoDataUrl) {
+          slide.addImage({ data: exportImages.logoDataUrl, x: 0.5, y: currentY, w: 1.8, h: 0.9, contain: true });
+        }
+        if (exportImages.visualDataUrls[0]) {
+          slide.addImage({ data: exportImages.visualDataUrls[0], x: 2.6, y: currentY, w: 2.2, h: 1.2, contain: true });
+        }
+        if (exportImages.visualDataUrls[1]) {
+          slide.addImage({ data: exportImages.visualDataUrls[1], x: 4.95, y: currentY, w: 2.2, h: 1.2, contain: true });
+        }
+        currentY += 1.35;
         slide.addText('Primary Colors', { x: 5.2, y: 1.3, w: 4, h: 0.3, fontSize: 12, bold: true, color: '18181B' });
         let colorY = 1.65;
         profile.colorPalette.primaryColors.slice(0, 3).forEach((color) => {
@@ -1118,8 +1255,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           slide.addText(`${color.name} (${color.hex})`, { x: 5.6, y: colorY, w: 3.6, h: 0.25, fontSize: 9, color: '3F3F46' });
           colorY += 0.3;
         });
-      });
-      pres.writeFile({ fileName: `Visual_Design_DeepDive_${new Date().toISOString().split('T')[0]}.pptx` });
+      }
+      await pres.writeFile({ fileName: `Visual_Design_DeepDive_${new Date().toISOString().split('T')[0]}.pptx` });
       setToast('PowerPoint exported successfully!');
     } catch (err) {
       console.error('Failed to generate PPTX:', err);
@@ -1129,118 +1266,132 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     }
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!report) return;
     setIsExporting(true);
     setToast('Generating PDF...');
-    import('jspdf').then(({ jsPDF }) => {
-      try {
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 15;
-        const contentWidth = pageWidth - margin * 2;
-        const addWrappedText = (text: string, x: number, y: number, fontSize: number, isBold: boolean = false, color: number[] = [0, 0, 0]) => {
-          doc.setFontSize(fontSize);
-          doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-          doc.setTextColor(color[0], color[1], color[2]);
-          const lines = doc.splitTextToSize(text, contentWidth);
-          const lineHeightMm = fontSize * 0.352778 * 1.5;
-          for (let i = 0; i < lines.length; i++) {
-            if (y > pageHeight - margin) {
-              doc.addPage();
-              y = margin;
-            }
-            doc.text(lines[i], x, y);
-            y += lineHeightMm;
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      const addWrappedText = (text: string, x: number, y: number, fontSize: number, isBold: boolean = false, color: number[] = [0, 0, 0]) => {
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+        doc.setTextColor(color[0], color[1], color[2]);
+        const lines = doc.splitTextToSize(text, contentWidth);
+        const lineHeightMm = fontSize * 0.352778 * 1.5;
+        for (let i = 0; i < lines.length; i++) {
+          if (y > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
           }
-          return y + 2;
-        };
-        let y = margin;
-        y = addWrappedText('Visual Design Deep Dive Report', margin, y, 22, true, [24, 24, 27]);
-        y += 5;
-        if (analysisObjective) {
-          addWrappedText(`Objective: ${analysisObjective}`, margin, y, 11, true, [79, 70, 229]);
-          y += 8;
+          doc.text(lines[i], x, y);
+          y += lineHeightMm;
         }
-        if (targetAudience) {
-          addWrappedText(`Target Audience: ${targetAudience}`, margin, y, 11, false, [82, 82, 91]);
-          y += 6;
+        return y + 2;
+      };
+      let y = margin;
+      y = addWrappedText('Visual Design Deep Dive Report', margin, y, 22, true, [24, 24, 27]);
+      y += 5;
+      if (analysisObjective) {
+        addWrappedText(`Objective: ${analysisObjective}`, margin, y, 11, true, [79, 70, 229]);
+        y += 8;
+      }
+      if (targetAudience) {
+        addWrappedText(`Target Audience: ${targetAudience}`, margin, y, 11, false, [82, 82, 91]);
+        y += 6;
+      }
+      y += 3;
+      for (let profileIdx = 0; profileIdx < report.brandProfiles.length; profileIdx += 1) {
+        const profile = report.brandProfiles[profileIdx];
+        const exportImages = await collectProfileExportImages(profile);
+        if (y > pageHeight - margin - 60) {
+          doc.addPage();
+          y = margin;
+        }
+        y = addWrappedText(profile.brandName, margin, y, 16, true, [24, 24, 27]);
+        if (profile.website) {
+          y = addWrappedText(profile.website, margin, y, 10, false, [82, 82, 91]);
         }
         y += 3;
-        report.brandProfiles.forEach((profile, profileIdx) => {
-          if (y > pageHeight - margin - 20) {
-            doc.addPage();
-            y = margin;
+        if (exportImages.logoDataUrl || exportImages.visualDataUrls.length > 0) {
+          const imageTop = y;
+          if (exportImages.logoDataUrl) {
+            doc.addImage(exportImages.logoDataUrl, getPdfImageFormat(exportImages.logoDataUrl), margin, imageTop, 35, 18, undefined, 'FAST');
           }
-          y = addWrappedText(profile.brandName, margin, y, 16, true, [24, 24, 27]);
-          if (profile.website) {
-            y = addWrappedText(profile.website, margin, y, 10, false, [82, 82, 91]);
+          if (exportImages.visualDataUrls[0]) {
+            doc.addImage(exportImages.visualDataUrls[0], getPdfImageFormat(exportImages.visualDataUrls[0]), margin + 40, imageTop, 55, 31, undefined, 'FAST');
           }
-          y += 3;
-          y = addWrappedText('Distinctiveness', margin, y, 11, true, [24, 24, 27]);
-          y = addWrappedText(profile.distinctivenessAssessment, margin, y, 10, false, [63, 63, 70]);
-          y += 3;
-          y = addWrappedText('Logo System', margin, y, 11, true, [24, 24, 27]);
-          y = addWrappedText(`Primary: ${profile.logo.mainLogo}`, margin, y, 10, false, [63, 63, 70]);
-          y = addWrappedText(`Wordmark: ${profile.logo.wordmarkLogotype}`, margin, y, 10, false, [63, 63, 70]);
-          y += 2;
-          y = addWrappedText('Variations', margin, y, 10, true, [63, 63, 70]);
-          profile.logo.logoVariations.forEach((variation) => {
-            y = addWrappedText(`• ${variation}`, margin + 3, y, 9, false, [82, 82, 91]);
-          });
-          y += 2;
-          y = addWrappedText('Typography', margin, y, 11, true, [24, 24, 27]);
-          y = addWrappedText(`Families: ${profile.typography.fontFamilies.join(', ')}`, margin, y, 10, false, [63, 63, 70]);
-          y = addWrappedText(`H1: ${profile.typography.hierarchy.h1}`, margin, y, 9, false, [82, 82, 91]);
-          y = addWrappedText(`H2: ${profile.typography.hierarchy.h2}`, margin, y, 9, false, [82, 82, 91]);
-          y = addWrappedText(`Body: ${profile.typography.hierarchy.body}`, margin, y, 9, false, [82, 82, 91]);
-          y += 2;
-          y = addWrappedText('Primary Colors', margin, y, 11, true, [24, 24, 27]);
-          profile.colorPalette.primaryColors.forEach((color) => {
-            y = addWrappedText(`• ${color.name} (${color.hex})`, margin + 3, y, 9, false, [82, 82, 91]);
-          });
-          y += 2;
-          y = addWrappedText('Accent Colors', margin, y, 11, true, [24, 24, 27]);
-          profile.colorPalette.secondaryAccentColors.forEach((color) => {
-            y = addWrappedText(`• ${color.name} (${color.hex})`, margin + 3, y, 9, false, [82, 82, 91]);
-          });
-          y += 2;
-          y = addWrappedText('Supporting Visual Elements', margin, y, 11, true, [24, 24, 27]);
-          y = addWrappedText('Imagery Style', margin, y, 10, true, [63, 63, 70]);
-          profile.supportingVisualElements.imageryStyle.forEach((item) => {
-            y = addWrappedText(`• ${item}`, margin + 3, y, 9, false, [82, 82, 91]);
-          });
-          y += 1;
-          y = addWrappedText('Icons', margin, y, 10, true, [63, 63, 70]);
-          profile.supportingVisualElements.icons.forEach((item) => {
-            y = addWrappedText(`• ${item}`, margin + 3, y, 9, false, [82, 82, 91]);
-          });
-          y += 4;
-          if (profileIdx < report.brandProfiles.length - 1) {
-            doc.addPage();
-            y = margin;
+          if (exportImages.visualDataUrls[1]) {
+            doc.addImage(exportImages.visualDataUrls[1], getPdfImageFormat(exportImages.visualDataUrls[1]), margin + 98, imageTop, 55, 31, undefined, 'FAST');
           }
-        });
-        if (report.crossBrandReadout && report.crossBrandReadout.length > 0) {
-          if (y > pageHeight - margin - 20) {
-            doc.addPage();
-            y = margin;
-          }
-          y = addWrappedText('Opportunity Spaces', margin, y, 14, true, [24, 24, 27]);
-          report.crossBrandReadout.forEach((item) => {
-            y = addWrappedText(`• ${item}`, margin + 3, y, 10, false, [82, 82, 91]);
-          });
+          y += 36;
         }
-        doc.save(`Visual_Design_DeepDive_${new Date().toISOString().split('T')[0]}.pdf`);
-        setToast('PDF exported successfully!');
-      } catch (err) {
-        console.error('Failed to generate PDF:', err);
-        setToast('Failed to generate PDF.');
-      } finally {
-        setIsExporting(false);
+        y = addWrappedText('Distinctiveness', margin, y, 11, true, [24, 24, 27]);
+        y = addWrappedText(profile.distinctivenessAssessment, margin, y, 10, false, [63, 63, 70]);
+        y += 3;
+        y = addWrappedText('Logo System', margin, y, 11, true, [24, 24, 27]);
+        y = addWrappedText(`Primary: ${profile.logo.mainLogo}`, margin, y, 10, false, [63, 63, 70]);
+        y = addWrappedText(`Wordmark: ${profile.logo.wordmarkLogotype}`, margin, y, 10, false, [63, 63, 70]);
+        y += 2;
+        y = addWrappedText('Variations', margin, y, 10, true, [63, 63, 70]);
+        profile.logo.logoVariations.forEach((variation) => {
+          y = addWrappedText(`• ${variation}`, margin + 3, y, 9, false, [82, 82, 91]);
+        });
+        y += 2;
+        y = addWrappedText('Typography', margin, y, 11, true, [24, 24, 27]);
+        y = addWrappedText(`Families: ${profile.typography.fontFamilies.join(', ')}`, margin, y, 10, false, [63, 63, 70]);
+        y = addWrappedText(`H1: ${profile.typography.hierarchy.h1}`, margin, y, 9, false, [82, 82, 91]);
+        y = addWrappedText(`H2: ${profile.typography.hierarchy.h2}`, margin, y, 9, false, [82, 82, 91]);
+        y = addWrappedText(`Body: ${profile.typography.hierarchy.body}`, margin, y, 9, false, [82, 82, 91]);
+        y += 2;
+        y = addWrappedText('Primary Colors', margin, y, 11, true, [24, 24, 27]);
+        profile.colorPalette.primaryColors.forEach((color) => {
+          y = addWrappedText(`• ${color.name} (${color.hex})`, margin + 3, y, 9, false, [82, 82, 91]);
+        });
+        y += 2;
+        y = addWrappedText('Accent Colors', margin, y, 11, true, [24, 24, 27]);
+        profile.colorPalette.secondaryAccentColors.forEach((color) => {
+          y = addWrappedText(`• ${color.name} (${color.hex})`, margin + 3, y, 9, false, [82, 82, 91]);
+        });
+        y += 2;
+        y = addWrappedText('Supporting Visual Elements', margin, y, 11, true, [24, 24, 27]);
+        y = addWrappedText('Imagery Style', margin, y, 10, true, [63, 63, 70]);
+        profile.supportingVisualElements.imageryStyle.forEach((item) => {
+          y = addWrappedText(`• ${item}`, margin + 3, y, 9, false, [82, 82, 91]);
+        });
+        y += 1;
+        y = addWrappedText('Icons', margin, y, 10, true, [63, 63, 70]);
+        profile.supportingVisualElements.icons.forEach((item) => {
+          y = addWrappedText(`• ${item}`, margin + 3, y, 9, false, [82, 82, 91]);
+        });
+        y += 4;
+        if (profileIdx < report.brandProfiles.length - 1) {
+          doc.addPage();
+          y = margin;
+        }
       }
-    });
+      if (report.crossBrandReadout && report.crossBrandReadout.length > 0) {
+        if (y > pageHeight - margin - 20) {
+          doc.addPage();
+          y = margin;
+        }
+        y = addWrappedText('Opportunity Spaces', margin, y, 14, true, [24, 24, 27]);
+        report.crossBrandReadout.forEach((item) => {
+          y = addWrappedText(`• ${item}`, margin + 3, y, 10, false, [82, 82, 91]);
+        });
+      }
+      doc.save(`Visual_Design_DeepDive_${new Date().toISOString().split('T')[0]}.pdf`);
+      setToast('PDF exported successfully!');
+    } catch (err) {
+      console.error('Failed to generate PDF:', err);
+      setToast('Failed to generate PDF.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -1302,13 +1453,36 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
       <div className="w-full max-w-4xl mx-auto">
 
+      {isSearchControlsMinimized && report && !isLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 bg-white border border-zinc-200 rounded-2xl px-4 py-3 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 no-print"
+        >
+          <div className="text-left">
+            <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Visual Design Deep Dive</p>
+            <p className="text-sm text-zinc-700">
+              {brands.filter((b) => b.name.trim()).map((b) => b.name.trim()).slice(0, 3).join(' vs ') || 'Brand comparison ready'}
+              {analysisObjective.trim() ? ` • Objective: ${analysisObjective.trim()}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSearchControlsMinimized(false)}
+            className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1"
+          >
+            Edit Search
+          </button>
+        </motion.div>
+      )}
+
       <motion.form
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
         onSubmit={handleSubmit}
         noValidate
-        className="w-full relative flex flex-col gap-4 bg-white rounded-3xl border border-zinc-200 shadow-sm p-6 md:p-8 space-y-4"
+        className={`w-full relative flex flex-col gap-4 bg-white rounded-3xl border border-zinc-200 shadow-sm p-6 md:p-8 space-y-4 ${isSearchControlsMinimized ? 'hidden' : ''}`}
       >
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -1378,7 +1552,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
               onChange={(e) => setAnalysisObjective(e.target.value)}
               placeholder="Visual Identity Objective (Required) e.g. Compare distinctiveness and consistency across premium skincare brands"
               rows={3}
-              className={`w-full pl-12 pr-4 py-4 rounded-2xl border ${showValidation && !analysisObjective.trim() ? 'border-red-500' : 'border-zinc-200'} focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none`}
+              className="w-full pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
               disabled={isLoading}
             />
           </div>
@@ -1434,7 +1608,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         {error && <p className="text-sm text-red-500">{error}</p>}
       </motion.form>
 
-      <p className="text-xs text-zinc-400 text-center mt-3 select-none">
+      <p className={`text-xs text-zinc-400 text-center mt-3 select-none ${isSearchControlsMinimized ? 'hidden' : ''}`}>
         AI models can make mistakes. Always double check your work. Remember to think critically.
       </p>
 
@@ -1580,6 +1754,9 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                         {visuals.images.map((image, idx) => {
                           const cardKey = `${profile.brandName}-visual-${idx}`;
                           const failureState = visualFailuresByCard[cardKey];
+                          if (failureState?.hidden) {
+                            return null;
+                          }
                           const sourceUrl = profile.website || '';
                           const fallbackChain = buildVisualPreviewFallbackChain(image.url, profile.website).join('|');
                           const visualClass =
@@ -1606,6 +1783,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                                     alt={`${profile.brandName} - ${image.label}`}
                                     loading="lazy"
                                     referrerPolicy="origin"
+                                    data-original-src={image.url}
                                     data-fallback-chain={fallbackChain}
                                     onLoad={() => clearVisualFailureState(cardKey)}
                                     onError={(event) => handleVisualImageError(event, cardKey)}
@@ -1618,6 +1796,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                                   alt={`${profile.brandName} - ${image.label}`}
                                   loading="lazy"
                                   referrerPolicy="origin"
+                                  data-original-src={image.url}
                                   data-fallback-chain={fallbackChain}
                                   onLoad={() => clearVisualFailureState(cardKey)}
                                   onError={(event) => handleVisualImageError(event, cardKey)}

@@ -271,6 +271,7 @@ export default function App() {
   const [selectedEvidenceFilters, setSelectedEvidenceFilters] = useState<EvidenceLabelFilter[]>([]);
   const [selectedTrendStageFilters, setSelectedTrendStageFilters] = useState<TrendStageFilter[]>([]);
   const [selectedSourceFilters, setSelectedSourceFilters] = useState<string[]>([]);
+  const [isResearchControlsMinimized, setIsResearchControlsMinimized] = useState(false);
 
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const deleteTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -448,6 +449,17 @@ export default function App() {
     };
   }, [showSplash, isSplashHeld]);
 
+  useEffect(() => {
+    if (matrix && !isLoading) {
+      setIsResearchControlsMinimized(true);
+      return;
+    }
+
+    if (!matrix) {
+      setIsResearchControlsMinimized(false);
+    }
+  }, [matrix, isLoading]);
+
   const handleSplashHoldStart = () => {
     if (showSplash) {
       setIsSplashHeld(true);
@@ -605,6 +617,7 @@ export default function App() {
     setMatrixQuestion('');
     setMatrixAnswer('');
     setHighlightedInsights([]);
+    setIsResearchControlsMinimized(false);
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -1367,43 +1380,45 @@ export default function App() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="max-w-3xl mx-auto text-center"
+            className="max-w-3xl mx-auto text-center min-h-[78vh] flex flex-col"
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6 mx-auto">
+            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3 mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
+            <h1 className="text-lg md:text-xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
               Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
             </h1>
-            <h2 className="text-[1.91rem] md:text-[2.55rem] font-semibold tracking-tight text-zinc-900 mb-3">
-              Choose Your Research Experience
-            </h2>
-            <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
-              Start with a cultural deep dive or jumpp into a visual identity analysis.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setActiveExperience('research')}
-                className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
-              >
-                <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
-                  <Search className="w-4 h-4" /> Cultural Archaeologist
-                </div>
-                <p className="subheader-copy text-sm text-zinc-500">
-                  Generate cross-generational audience and culture insights.
-                </p>
-              </button>
-              <button
-                onClick={() => setActiveExperience('brand')}
-                className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
-              >
-                <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
-                  <Sparkles className="w-4 h-4" /> Visual Design Deep Dive
-                </div>
-                <p className="subheader-copy text-sm text-zinc-500">
-                  Compare logo systems, colors, typography, and visual identity cues.
-                </p>
-              </button>
+            <div className="flex-1 flex flex-col justify-center">
+              <h2 className="text-[1.91rem] md:text-[2.55rem] font-semibold tracking-tight text-zinc-900 mb-3">
+                Choose Your Research Experience
+              </h2>
+              <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
+                Start with a cultural deep dive or jump into a visual identity analysis.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => setActiveExperience('research')}
+                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
+                >
+                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
+                    <Search className="w-4 h-4" /> Cultural Archaeologist
+                  </div>
+                  <p className="subheader-copy text-sm text-zinc-500">
+                    Generate cross-generational audience and culture insights.
+                  </p>
+                </button>
+                <button
+                  onClick={() => setActiveExperience('brand')}
+                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
+                >
+                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
+                    <Sparkles className="w-4 h-4" /> Visual Design Deep Dive
+                  </div>
+                  <p className="subheader-copy text-sm text-zinc-500">
+                    Compare logo systems, colors, typography, and visual identity cues.
+                  </p>
+                </button>
+              </div>
             </div>
           </motion.section>
         )}
@@ -1858,13 +1873,39 @@ export default function App() {
             </p>
           </motion.div>
 
+          {isResearchControlsMinimized && matrixMeta && !isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-4xl mx-auto mt-8 mb-2"
+            >
+              <div className="bg-white border border-zinc-200 rounded-2xl px-4 py-3 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="text-left">
+                  <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Cultural Archaeologist</p>
+                  <p className="text-sm text-zinc-700">
+                    Audience: {matrixMeta.audience || 'N/A'}
+                    {matrixMeta.brand ? ` • Context: ${matrixMeta.brand}` : ''}
+                    {matrixMeta.topicFocus ? ` • Topic: ${matrixMeta.topicFocus}` : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsResearchControlsMinimized(false)}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1"
+                >
+                  Edit Search
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           <motion.form
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             onSubmit={handleGenerate}
             noValidate
-            className="w-full max-w-4xl mt-10 relative flex flex-col gap-4"
+            className={`w-full max-w-4xl mt-10 relative flex flex-col gap-4 ${isResearchControlsMinimized ? 'hidden' : ''}`}
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative flex items-center w-full" ref={brandDropdownRef}>
@@ -2199,6 +2240,7 @@ export default function App() {
                     'Ranking highest-potency insights...',
                     'Shaping strategist-ready output...',
                   ]}
+                  className="text-xs whitespace-nowrap leading-none"
                   showProgress
                   progress={fakeProgress}
                 />
