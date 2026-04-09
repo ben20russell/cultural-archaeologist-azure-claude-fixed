@@ -1356,30 +1356,30 @@ export default function App() {
 
       {/* Soft Dialpad-style background gradient */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-indigo-200/30 blur-[84px]" />
-        <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-cyan-200/20 blur-[84px]" />
-        <div className="absolute -bottom-[10%] left-[20%] w-[60%] h-[60%] rounded-full bg-fuchsia-200/20 blur-[84px]" />
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-indigo-200/30 blur-[120px]" />
+        <div className="absolute top-[20%] -right-[10%] w-[50%] h-[50%] rounded-full bg-cyan-200/20 blur-[120px]" />
+        <div className="absolute -bottom-[10%] left-[20%] w-[60%] h-[60%] rounded-full bg-fuchsia-200/20 blur-[120px]" />
       </div>
       
-      <main className={`relative z-10 flex-1 w-full max-w-6xl mx-auto px-6 ${activeExperience === null ? 'pt-4 pb-16 md:pt-6 md:pb-24' : 'py-16 md:py-24'}`}>
+      <main className={`relative z-10 flex-1 w-full max-w-6xl mx-auto px-6 ${activeExperience === null ? 'py-6 md:py-10' : 'py-16 md:py-24'}`}>
         {activeExperience === null && (
           <motion.section
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="max-w-3xl mx-auto text-center min-h-[70vh] flex flex-col justify-center"
+            className="max-w-3xl mx-auto text-center"
           >
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6 mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
-            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-950 mb-8 select-none">
+            <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-zinc-950 mb-4 select-none">
               Brand <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Atlas</span>
             </h1>
             <h2 className="text-[1.91rem] md:text-[2.55rem] font-semibold tracking-tight text-zinc-900 mb-3">
               Choose Your Research Experience
             </h2>
             <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
-              Start with a cultural deep dive or explore a visual identities analysis.
+              Start with a cultural deep dive or jumpp into a visual identity analysis.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
