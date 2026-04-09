@@ -1445,6 +1445,14 @@ export default function App() {
                   <p className="subheader-copy text-sm text-zinc-500">
                     Generate sharper insights about any audience through a cultural lens.
                   </p>
+                  <ul className="mt-3 space-y-1">
+                    {['Audience research', 'Strategy development', 'Campaign & content ideation', 'Creative briefs', 'Pitches'].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-400">
+                        <span className="w-1 h-1 rounded-full bg-zinc-300 flex-shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </button>
                 <button
                   onClick={() => setActiveExperience('brand')}
@@ -1459,6 +1467,14 @@ export default function App() {
                   <p className="subheader-copy text-sm text-zinc-500">
                     Compare design systems across multiple brands: logos, colors, typography, visual identity cues.
                   </p>
+                  <ul className="mt-3 space-y-1">
+                    {['Competitive research', 'Branding strategy development', 'Visual identity exploration', 'Creative briefs', 'Pitches'].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-400">
+                        <span className="w-1 h-1 rounded-full bg-zinc-300 flex-shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
                 </button>
               </div>
             </div>
