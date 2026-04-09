@@ -2398,7 +2398,7 @@ export default function App() {
                     type="text"
                     value={matrixQuestion}
                     onChange={(e) => setMatrixQuestion(e.target.value)}
-                    placeholder="Ask a question about this audience (e.g., What are their main anxieties?)"
+                    placeholder="Ask a question about this audience (e.g., what are their main anxieties?)"
                     className="flex-1 px-5 py-4 rounded-2xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-zinc-900 shadow-sm"
                     onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
                     disabled={isAskingQuestion}
