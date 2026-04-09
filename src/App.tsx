@@ -1439,15 +1439,15 @@ export default function App() {
                   onClick={() => setActiveExperience('research')}
                   className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
                 >
-                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
+                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-base">
                     <Search className="w-4 h-4" /> Cultural Archaeologist
                   </div>
-                  <p className="subheader-copy text-sm text-zinc-500">
+                  <p className="subheader-copy text-base text-zinc-500">
                     Generate sharper insights about any audience through a cultural lens.
                   </p>
                   <ul className="mt-3 space-y-1">
                     {['Audience research', 'Strategy development', 'Campaign & content ideation', 'Creative briefs', 'Pitches'].map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-500">
+                      <li key={item} className="flex items-center gap-2 text-sm text-zinc-500">
                         <span className="w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
                         {item}
                       </li>
@@ -1458,18 +1458,18 @@ export default function App() {
                   onClick={() => setActiveExperience('brand')}
                   className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all"
                 >
-                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2">
+                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-base">
                     <Sparkles className="w-4 h-4" /> Visual Design Excavator
                     <span className="inline-flex items-center rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
                       Beta
                     </span>
                   </div>
-                  <p className="subheader-copy text-sm text-zinc-500">
+                  <p className="subheader-copy text-base text-zinc-500">
                     Compare design systems across multiple brands: logos, colors, typography, visual identity cues.
                   </p>
                   <ul className="mt-3 space-y-1">
                     {['Competitive research', 'Branding strategy development', 'Visual identity exploration', 'Creative briefs', 'Pitches'].map((item) => (
-                      <li key={item} className="flex items-center gap-2 text-xs text-zinc-500">
+                      <li key={item} className="flex items-center gap-2 text-sm text-zinc-500">
                         <span className="w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
                         {item}
                       </li>
