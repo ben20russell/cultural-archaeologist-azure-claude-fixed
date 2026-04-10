@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { Loader2, MessageSquareText, Send, X } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const API_BASE_URL =
   (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ||
@@ -42,24 +44,16 @@ export function FeedbackChatWidget() {
     setSubmitState({ type: 'idle', message: '' });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/feedback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          feedback: trimmedMessage,
+      const { error } = await supabase.from('feedback_messages').insert([
+        {
+          message: trimmedMessage,
           pageUrl: window.location.href,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'Failed to submit feedback.');
+        },
+      ]);
+      if (error) {
+        throw new Error(error.message);
       }
-
       const successMessage = 'Thanks, your feedback is greatly appreciated.';
-
       setSubmitState({ type: 'success', message: successMessage });
       setMessage('');
     } catch (error) {
