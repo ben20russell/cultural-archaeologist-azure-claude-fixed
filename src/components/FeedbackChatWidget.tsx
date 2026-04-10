@@ -5,7 +5,7 @@ import type { FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { Loader2, MessageSquareText, Send, X } from 'lucide-react';
-import { submitFeedbackToGoogleSheets } from '../api/submitFeedbackToGoogleSheets';
+import { submitFeedbackToSupabase } from '../api/submitFeedbackToSupabase';
 
 
 const API_BASE_URL =
@@ -46,7 +46,7 @@ export function FeedbackChatWidget() {
     setSubmitState({ type: 'idle', message: '' });
 
     try {
-      await submitFeedbackToGoogleSheets({
+      await submitFeedbackToSupabase({
         message: trimmedMessage,
         pageUrl: window.location.href,
       });
