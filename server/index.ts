@@ -270,6 +270,7 @@ app.delete('/api/searches/:id', async (req, res) => {
 });
 
 
+
 // --- 3. FEEDBACK ROUTE ---
 app.post('/api/feedback', async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
@@ -281,31 +282,20 @@ app.post('/api/feedback', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'Message is required.' });
 
   try {
-    // Keep your Google Sheets appendFeedbackToGoogleSheet() call here if you still want it
-    // await appendFeedbackToGoogleSheet({ email: email || undefined, message });
-
-    // Insert into Supabase
     const { data, error } = await supabase.from('feedback_messages').insert([
       {
         name: name || null,
         email: email || null,
         message: message,
-        pageUrl: pageUrl || null,
-        userAgent: userAgent || null
+        page_url: pageUrl || null,
+        user_agent: userAgent || null
       }
     ]).select();
 
     if (error) throw error;
-
-    // Keep your sendFeedbackEmail() call here
-    // await sendFeedbackEmail({ name, email, message, pageUrl, userAgent });
-
     return res.json({
       success: true,
       feedbackId: data[0].id,
-      sheetSaved: true,
-      emailSent: true,
-      emailError: null,
     });
   } catch (error) {
     console.error('Error saving feedback:', error);
@@ -321,7 +311,7 @@ app.get('/api/feedback', async (req, res) => {
     const { data, error } = await supabase
       .from('feedback_messages')
       .select('*')
-      .order('createdAt', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit);
     if (error) throw error;
     return res.json(data);
@@ -331,21 +321,66 @@ app.get('/api/feedback', async (req, res) => {
   }
 });
 
-app.get('/api/feedback', (req, res) => {
-  const requestedLimit = Number(req.query.limit || 100);
-  const limit = Number.isFinite(requestedLimit)
-    ? Math.max(1, Math.min(500, requestedLimit))
-    : 100;
-
+// --- 4. VISUAL DEEP DIVES ROUTES ---
+app.post('/api/deep-dives', async (req, res) => {
+  const { brand, audience, topic_focus, generations, sources_type, results } = req.body;
   try {
-    const feedback = db
-      .prepare('SELECT * FROM feedback_messages ORDER BY createdAt DESC LIMIT ?')
-      .all(limit);
-
-    return res.json(feedback);
+    const { error } = await supabase.from('visual_deep_dives').insert([
+      {
+        brand: brand || null,
+        audience: audience || null,
+        topic_focus: topic_focus || null,
+        generations: generations || [],
+        sources_type: sources_type || [],
+        results: results
+      }
+    ]);
+    if (error) throw error;
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error fetching feedback:', error);
-    return res.status(500).json({ error: 'Failed to fetch feedback.' });
+    console.error('Error saving deep dive:', error);
+    res.status(500).json({ error: 'Failed to save deep dive' });
+  }
+});
+
+app.get('/api/deep-dives', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('visual_deep_dives')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching deep dives:', error);
+    res.status(500).json({ error: 'Failed to fetch deep dives' });
+  }
+});
+
+app.get('/api/deep-dives/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('visual_deep_dives')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !data) return res.status(404).json({ error: 'Deep dive not found' });
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching deep dive:', error);
+    res.status(500).json({ error: 'Failed to fetch deep dive' });
+  }
+});
+
+app.delete('/api/deep-dives/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('visual_deep_dives').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting deep dive:', error);
+    res.status(500).json({ error: 'Failed to delete deep dive' });
   }
 });
 
