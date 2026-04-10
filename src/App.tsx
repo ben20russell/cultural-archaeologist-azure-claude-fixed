@@ -15,6 +15,7 @@ import { ProgressiveLoader } from './components/ProgressiveLoader';
 import { Accordion } from './components/Accordion';
 import { FeedbackChatWidget } from './components/FeedbackChatWidget';
 import pptxgen from 'pptxgenjs';
+import { supabase } from './services/supabase-client';
 
 // Removed Google Slides export and Google Auth modal (Supabase-only)
 
@@ -677,25 +678,22 @@ export default function App() {
       setMatrix(result);
       setMatrixMeta({ audience, brand, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
 
-      // Persist generated searches to backend for cross-user visibility.
+      // Persist generated searches directly to Supabase
       try {
-        await fetch('http://localhost:3001/api/searches', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        await supabase.from('searches').insert([
+          {
             brand,
             audience,
-            topicFocus,
+            topic_focus: topicFocus,
             generations: selectedGenerations,
-            sourcesType,
+            sources_type: sourcesType,
             results: result,
-          }),
-        });
+            created_at: new Date().toISOString(),
+          },
+        ]);
       } catch (saveErr) {
         // Do not block core generation flow if backend persistence is unavailable.
-        console.warn('Failed to save search to backend:', saveErr);
+        console.warn('Failed to save search to Supabase:', saveErr);
       }
       
       // Save to local storage

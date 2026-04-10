@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import pptxgen from 'pptxgenjs';
 import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
+import { supabase } from '../services/supabase-client';
 import { Accordion } from './Accordion';
 
 interface BrandDeepDivePageProps {
@@ -652,6 +653,22 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
       const updated = [nextSaved, ...savedSearches.filter((item) => item.id !== nextSaved.id)].slice(0, 20);
       setSavedSearches(updated);
       localStorage.setItem('visual_design_deep_dives', JSON.stringify(updated));
+
+      // Persist to Supabase
+      try {
+        await supabase.from('brand_deep_dives').insert([
+          {
+            brands: normalizedBrands,
+            analysis_objective: analysisObjective,
+            target_audience: targetAudience,
+            report: result,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (saveErr) {
+        // Do not block UI if Supabase fails
+        console.warn('Failed to save brand deep dive to Supabase:', saveErr);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to generate brand excavator:', message);
@@ -706,6 +723,22 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         const updated = [nextSaved, ...savedSearches.filter((item) => item.id !== nextSaved.id)].slice(0, 20);
         setSavedSearches(updated);
         localStorage.setItem('visual_design_deep_dives', JSON.stringify(updated));
+
+        // Persist to Supabase
+        try {
+          await supabase.from('brand_deep_dives').insert([
+            {
+              brands: normalizedBrands,
+              analysis_objective: analysisObjective,
+              target_audience: targetAudience,
+              report: result.report,
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        } catch (saveErr) {
+          // Do not block UI if Supabase fails
+          console.warn('Failed to save brand deep dive to Supabase:', saveErr);
+        }
       }
 
       setReportAnswer(result.answer);
