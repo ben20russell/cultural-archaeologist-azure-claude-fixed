@@ -1977,7 +1977,7 @@ export default function App() {
                   }}
                   onFocus={() => setIsBrandDropdownOpen(true)}
                   placeholder="Brand or Category (e.g. Energy Drinks)"
-                  className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-base"
+                  className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-sm"
                   disabled={isLoading}
                 />
                 {isDetecting && !brand.trim() && (
@@ -2084,7 +2084,7 @@ export default function App() {
                       if (showValidation) setShowValidation(false);
                     }}
                     placeholder="Primary Audience (Required) *"
-                    className={`w-full pl-12 pr-12 py-4 bg-white border ${showValidation && !audience.trim() ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-zinc-200 focus:ring-indigo-500/20 focus:border-indigo-500'} rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 transition-all shadow-sm text-base`}
+                    className={`w-full pl-12 pr-12 py-4 bg-white border ${showValidation && !audience.trim() ? 'border-red-500 focus:ring-red-500/20 focus:border-red-500' : 'border-zinc-200 focus:ring-indigo-500/20 focus:border-indigo-500'} rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 transition-all shadow-sm text-sm`}
                     disabled={isLoading}
                     required
                   />
@@ -2106,7 +2106,7 @@ export default function App() {
                   value={topicFocus}
                   onChange={(e) => setTopicFocus(e.target.value)}
                   placeholder="Topic Focus (Optional)"
-                  className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-base"
+                  className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-sm"
                   disabled={isLoading}
                 />
                 {isDetecting && !topicFocus.trim() && (
@@ -2123,7 +2123,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsGenerationDropdownOpen(!isGenerationDropdownOpen)}
-                  className="w-full flex items-center justify-between px-4 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-700 hover:bg-zinc-50 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-base"
+                  className="w-full flex items-center justify-between px-4 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-700 hover:bg-zinc-50 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
                   disabled={isLoading}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
@@ -2179,7 +2179,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsSourcesDropdownOpen(!isSourcesDropdownOpen)}
-                  className="w-full flex items-center justify-between px-4 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-700 hover:bg-zinc-50 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-base"
+                  className="w-full flex items-center justify-between px-4 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-700 hover:bg-zinc-50 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
                   disabled={isLoading}
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
@@ -2258,7 +2258,7 @@ export default function App() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-white border border-dashed border-zinc-300 rounded-2xl text-zinc-600 hover:bg-zinc-50 hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-base"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-white border border-dashed border-zinc-300 rounded-2xl text-zinc-600 hover:bg-zinc-50 hover:border-indigo-300 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
                 >
                   <Upload className="w-5 h-5 text-zinc-400" />
                   <span>Upload Documents (Optional)</span>
@@ -2457,7 +2457,7 @@ export default function App() {
                     value={matrixQuestion}
                     onChange={(e) => setMatrixQuestion(e.target.value)}
                     placeholder="Ask a question about this audience (e.g., what are their main anxieties?)"
-                    className="flex-1 px-5 py-4 rounded-2xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-zinc-900 shadow-sm"
+                    className="flex-1 px-5 py-4 rounded-2xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-zinc-900 shadow-sm text-sm"
                     onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
                     disabled={isAskingQuestion}
                   />
