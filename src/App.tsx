@@ -2002,7 +2002,7 @@ export default function App() {
                     setIsBrandDropdownOpen(true);
                   }}
                   onFocus={() => setIsBrandDropdownOpen(true)}
-                  placeholder="Brand or Category (e.g. Energy Drinks)"
+                  placeholder="Brand or Category (Optional)"
                   className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-sm"
                   disabled={isLoading}
                 />
