@@ -1,16 +1,15 @@
 // src/api/submitFeedbackToSupabase.ts
+import { supabase } from '../services/supabase-client';
+
 export async function submitFeedbackToSupabase({ message, pageUrl }: { message: string; pageUrl: string }) {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-  const response = await fetch(`${API_BASE_URL}/api/feedback`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  // You can expand this to include name/email if needed
+  const { error } = await supabase.from('feedback_messages').insert([
+    {
+      message,
+      page_url: pageUrl,
+      // Add more fields if your table expects them
     },
-    body: JSON.stringify({ message, pageUrl }),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || 'Failed to submit feedback.');
-  }
-  return response.json();
+  ]);
+  if (error) throw new Error(error.message || 'Failed to submit feedback.');
+  return { success: true };
 }
