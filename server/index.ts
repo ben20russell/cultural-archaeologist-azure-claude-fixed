@@ -1,8 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
-import { google } from 'googleapis';
+// Removed nodemailer and googleapis (no email/Google Sheets)
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,124 +38,13 @@ const MAX_FEEDBACK_NAME_LENGTH = 120;
 const MAX_FEEDBACK_EMAIL_LENGTH = 254;
 const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
 
-const feedbackRecipient = process.env.FEEDBACK_TO_EMAIL;
-const smtpHost = process.env.SMTP_HOST;
-const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpUser = process.env.SMTP_USER;
-const smtpPass = process.env.SMTP_PASS;
-const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
-const smtpFrom = process.env.SMTP_FROM || smtpUser || 'noreply@localhost';
-
-const googleClientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-const googlePrivateKey = process.env.GOOGLE_PRIVATE_KEY;
-const googleSheetId = process.env.GOOGLE_SHEET_ID;
-
-const getMissingGoogleSheetsConfig = (): string[] => {
-  const missing: string[] = [];
-  if (!googleClientEmail || !googleClientEmail.trim()) missing.push('GOOGLE_CLIENT_EMAIL');
-  if (!googlePrivateKey || !googlePrivateKey.trim()) missing.push('GOOGLE_PRIVATE_KEY');
-  if (!googleSheetId || !googleSheetId.trim()) missing.push('GOOGLE_SHEET_ID');
-  return missing;
-};
+// Removed all email/Google Sheets env and helpers
 
 const isValidEmail = (value: string): boolean => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 };
 
-const appendFeedbackToGoogleSheet = async (payload: {
-  email?: string;
-  message: string;
-}) => {
-  if (!googleClientEmail || !googlePrivateKey || !googleSheetId) {
-    throw new Error('Google Sheets environment variables are missing.');
-  }
-
-  const auth = new google.auth.JWT({
-    email: googleClientEmail,
-    key: googlePrivateKey.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-
-  const sheets = google.sheets({ version: 'v4', auth });
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: googleSheetId,
-    range: 'A:C',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: {
-      values: [[
-        new Date().toISOString(),
-        payload.email || 'Anonymous',
-        payload.message,
-      ]],
-    },
-  });
-};
-
-const sendFeedbackEmail = async (payload: {
-  name?: string;
-  email?: string;
-  message: string;
-  pageUrl?: string;
-  userAgent?: string;
-}) => {
-  if (!feedbackRecipient || !smtpHost || !smtpUser || !smtpPass) {
-    return {
-      sent: false,
-      reason: 'SMTP or recipient configuration is missing.',
-    } as const;
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
-
-  const escapedMessage = payload.message
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-    .replace(/\n/g, '<br/>');
-
-  await transporter.sendMail({
-    from: smtpFrom,
-    to: feedbackRecipient,
-    subject: `New Feedback${payload.email ? ` from ${payload.email}` : ''}`,
-    text: [
-      'New feedback message received',
-      '',
-      `Name: ${payload.name || 'Not provided'}`,
-      `Email: ${payload.email || 'Not provided'}`,
-      `Page: ${payload.pageUrl || 'Not provided'}`,
-      `User Agent: ${payload.userAgent || 'Not provided'}`,
-      '',
-      'Message:',
-      payload.message,
-    ].join('\n'),
-    html: `
-      <h2>New feedback message</h2>
-      <p><strong>Name:</strong> ${payload.name || 'Not provided'}</p>
-      <p><strong>Email:</strong> ${payload.email || 'Not provided'}</p>
-      <p><strong>Page:</strong> ${payload.pageUrl || 'Not provided'}</p>
-      <p><strong>User Agent:</strong> ${payload.userAgent || 'Not provided'}</p>
-      <hr />
-      <p>${escapedMessage}</p>
-    `,
-    replyTo: payload.email || undefined,
-  });
-
-  return {
-    sent: true,
-    reason: null,
-  } as const;
-};
+// Removed all Google Sheets and email logic for feedback
 
 const isDisallowedHost = (hostname: string): boolean => {
   const host = hostname.toLowerCase();
