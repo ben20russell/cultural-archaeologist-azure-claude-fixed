@@ -702,27 +702,29 @@ export default function App() {
       } catch (saveErr) {
         console.warn('Failed to save search to Supabase:', saveErr);
       }
-        
+
+      // Play chime sound using Web Audio API
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const ctx = new AudioContext();
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         const gainNode = ctx.createGain();
-        
+
         osc1.type = 'sine';
         osc2.type = 'sine';
-        
-        // Frequencies for a pleasant, soft chime (C6 and E6)
-        osc1.frequency.setValueAtTime(1046.50, ctx.currentTime); 
+
+        osc1.frequency.setValueAtTime(1046.50, ctx.currentTime);
         osc2.frequency.setValueAtTime(1318.51, ctx.currentTime);
-        
-        // Soft envelope
+
         gainNode.gain.setValueAtTime(0, ctx.currentTime);
         gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
         gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2);
-        
+
         osc1.connect(gainNode);
         osc2.connect(gainNode);
         gainNode.connect(ctx.destination);
-        
+
         osc1.start();
         osc2.start();
         osc1.stop(ctx.currentTime + 2);
