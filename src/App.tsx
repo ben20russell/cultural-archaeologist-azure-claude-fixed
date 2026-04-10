@@ -529,9 +529,17 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load saved matrices
+  // Load saved matrices from Supabase
   useEffect(() => {
-    setSavedMatrices(readSavedMatrices());
+    const fetchSavedMatrices = async () => {
+      const { data, error } = await supabase
+        .from('searches')
+        .select('*')
+        .order('createdAt', { ascending: false })
+        .limit(20);
+      if (!error) setSavedMatrices(data || []);
+    };
+    fetchSavedMatrices();
   }, []);
 
   useEffect(() => {
@@ -682,41 +690,18 @@ export default function App() {
       try {
         await supabase.from('searches').insert([
           {
-            brand,
+            brand: brand || null,
             audience,
-            topic_focus: topicFocus,
+            topicFocus: topicFocus || null,
             generations: selectedGenerations,
-            sources_type: sourcesType,
+            sourcesType,
             results: result,
-            created_at: new Date().toISOString(),
           },
         ]);
+        // Optionally, refresh saved matrices here if you want instant UI update
       } catch (saveErr) {
-        // Do not block core generation flow if backend persistence is unavailable.
         console.warn('Failed to save search to Supabase:', saveErr);
       }
-      
-      // Save to local storage
-      const newMatrix: SavedMatrix = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
-        brand,
-        audience,
-        generations: selectedGenerations,
-        topicFocus,
-        sourcesType,
-        hasUploadedDocuments,
-        matrix: result
-      };
-      const updated = [newMatrix, ...savedMatrices];
-      setSavedMatrices(updated);
-      if (!persistSavedMatrices(updated)) {
-        setToast('Search generated, but local save failed in this browser.');
-      }
-      
-      try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        const ctx = new AudioContext();
         
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
@@ -859,30 +844,9 @@ export default function App() {
     }
   };
 
-  const deleteSavedMatrix = (id: string) => {
-    const matrixToDelete = savedMatrices.find(m => m.id === id);
-    if (!matrixToDelete) return;
-
-    setDeletingIds(prev => [...prev, id]);
-    setUndoToast({ 
-      id, 
-      message: `Deleted "${matrixToDelete.brand || 'General Audience'}" search.` 
-    });
-
-    const timeoutId = setTimeout(() => {
-      setSavedMatrices(prev => {
-        const updated = prev.filter(m => m.id !== id);
-        if (!persistSavedMatrices(updated)) {
-          setToast('Search deleted, but local save failed in this browser.');
-        }
-        return updated;
-      });
-      setDeletingIds(prev => prev.filter(dId => dId !== id));
-      delete deleteTimeouts.current[id];
-      setUndoToast(current => current?.id === id ? null : current);
-    }, 30000);
-
-    deleteTimeouts.current[id] = timeoutId;
+  const deleteSavedMatrix = async (id: string) => {
+    await supabase.from('searches').delete().eq('id', id);
+    // Optionally, refresh saved matrices here
   };
 
   const undoDelete = (id: string) => {
