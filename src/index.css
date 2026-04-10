@@ -1,3 +1,11 @@
+/* Fuscia outline on hover for main white boxes */
+.main-box-hover:hover {
+  outline: 2px solid #d946ef; /* Tailwind fuchsia-500 */
+  outline-offset: 0px;
+  box-shadow: 0 0 0 2px #f0abfc33;
+  z-index: 2;
+  transition: outline-color 0.2s, box-shadow 0.2s;
+}
 @import "tailwindcss";
 
 h1,

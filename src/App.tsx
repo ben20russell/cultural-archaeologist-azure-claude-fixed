@@ -1437,7 +1437,7 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 <button
                   onClick={() => setActiveExperience('research')}
-                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start"
+                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
                     <Search className="w-4 h-4" /> Cultural Archaeologist
@@ -1456,7 +1456,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setActiveExperience('brand')}
-                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start"
+                  className="text-left bg-white/90 border border-zinc-200 rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
                     <Sparkles className="w-4 h-4" /> Visual Design Excavator
