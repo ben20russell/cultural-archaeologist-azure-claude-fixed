@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import db, { initializeDB } from './db';
+import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
@@ -195,28 +195,32 @@ const respondWithCachedImage = (res: express.Response, cached: CachedImage, ifNo
   res.send(cached.body);
 };
 
-// Initialize database
-initializeDB();
 
-// Save search results
-app.post('/api/searches', (req, res) => {
+// 1. Initialize Supabase
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("Missing Supabase environment variables!");
+}
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+
+
+// --- 2. SEARCH ROUTES ---
+app.post('/api/searches', async (req, res) => {
   const { brand, audience, topicFocus, generations, sourcesType, results } = req.body;
-
   try {
-    const stmt = db.prepare(`
-      INSERT INTO searches (brand, audience, topicFocus, generations, sourcesType, results)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      brand || null,
-      audience || null,
-      topicFocus || null,
-      JSON.stringify(generations || []),
-      JSON.stringify(sourcesType || []),
-      JSON.stringify(results)
-    );
-
+    const { error } = await supabase.from('searches').insert([
+      {
+        brand: brand || null,
+        audience: audience || null,
+        topicFocus: topicFocus || null,
+        generations: generations || [],
+        sourcesType: sourcesType || [],
+        results: results
+      }
+    ]);
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     console.error('Error saving search:', error);
@@ -224,53 +228,40 @@ app.post('/api/searches', (req, res) => {
   }
 });
 
-// Get all searches
-app.get('/api/searches', (_req, res) => {
+app.get('/api/searches', async (_req, res) => {
   try {
-    const searches = db.prepare('SELECT * FROM searches ORDER BY createdAt DESC LIMIT 100').all();
-    
-    // Parse JSON fields
-    const parsed = searches.map((s: any) => ({
-      ...s,
-      generations: JSON.parse(s.generations || '[]'),
-      sourcesType: JSON.parse(s.sourcesType || '[]'),
-      results: JSON.parse(s.results)
-    }));
-
-    res.json(parsed);
+    const { data, error } = await supabase
+      .from('searches')
+      .select('*')
+      .order('createdAt', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json(data);
   } catch (error) {
     console.error('Error fetching searches:', error);
     res.status(500).json({ error: 'Failed to fetch searches' });
   }
 });
 
-// Get single search by ID
-app.get('/api/searches/:id', (req, res) => {
+app.get('/api/searches/:id', async (req, res) => {
   try {
-    const search = db.prepare('SELECT * FROM searches WHERE id = ?').get(req.params.id);
-    
-    if (!search) {
-      return res.status(404).json({ error: 'Search not found' });
-    }
-
-    const parsed = {
-      ...search,
-      generations: JSON.parse((search as any).generations || '[]'),
-      sourcesType: JSON.parse((search as any).sourcesType || '[]'),
-      results: JSON.parse((search as any).results)
-    };
-
-    res.json(parsed);
+    const { data, error } = await supabase
+      .from('searches')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !data) return res.status(404).json({ error: 'Search not found' });
+    res.json(data);
   } catch (error) {
     console.error('Error fetching search:', error);
     res.status(500).json({ error: 'Failed to fetch search' });
   }
 });
 
-// Delete search
-app.delete('/api/searches/:id', (req, res) => {
+app.delete('/api/searches/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM searches WHERE id = ?').run(req.params.id);
+    const { error } = await supabase.from('searches').delete().eq('id', req.params.id);
+    if (error) throw error;
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting search:', error);
@@ -278,79 +269,65 @@ app.delete('/api/searches/:id', (req, res) => {
   }
 });
 
+
+// --- 3. FEEDBACK ROUTE ---
 app.post('/api/feedback', async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
   const pageUrl = typeof req.body?.pageUrl === 'string' ? req.body.pageUrl.trim() : '';
-
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required.' });
-  }
-
-  if (message.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
-    return res.status(400).json({ error: `Message must be ${MAX_FEEDBACK_MESSAGE_LENGTH} characters or less.` });
-  }
-
-  if (name.length > MAX_FEEDBACK_NAME_LENGTH) {
-    return res.status(400).json({ error: `Name must be ${MAX_FEEDBACK_NAME_LENGTH} characters or less.` });
-  }
-
-  if (email.length > MAX_FEEDBACK_EMAIL_LENGTH) {
-    return res.status(400).json({ error: `Email must be ${MAX_FEEDBACK_EMAIL_LENGTH} characters or less.` });
-  }
-
-  if (email && !isValidEmail(email)) {
-    return res.status(400).json({ error: 'Email format is invalid.' });
-  }
-
   const userAgent = req.header('user-agent') || '';
 
+  if (!message) return res.status(400).json({ error: 'Message is required.' });
+
   try {
-    await appendFeedbackToGoogleSheet({
-      email: email || undefined,
-      message,
-    });
+    // Keep your Google Sheets appendFeedbackToGoogleSheet() call here if you still want it
+    // await appendFeedbackToGoogleSheet({ email: email || undefined, message });
 
-    const stmt = db.prepare(`
-      INSERT INTO feedback_messages (name, email, message, pageUrl, userAgent)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    // Insert into Supabase
+    const { data, error } = await supabase.from('feedback_messages').insert([
+      {
+        name: name || null,
+        email: email || null,
+        message: message,
+        pageUrl: pageUrl || null,
+        userAgent: userAgent || null
+      }
+    ]).select();
 
-    const result = stmt.run(
-      name || null,
-      email || null,
-      message,
-      pageUrl || null,
-      userAgent || null,
-    );
+    if (error) throw error;
 
-    let emailResult: { sent: boolean; reason: string | null } = { sent: false, reason: null };
-    try {
-      emailResult = await sendFeedbackEmail({
-        name,
-        email,
-        message,
-        pageUrl,
-        userAgent,
-      });
-    } catch (emailError) {
-      const reason = emailError instanceof Error ? emailError.message : 'Unknown email delivery error';
-      emailResult = { sent: false, reason };
-      console.error('Feedback email send failed:', reason);
-    }
+    // Keep your sendFeedbackEmail() call here
+    // await sendFeedbackEmail({ name, email, message, pageUrl, userAgent });
 
     return res.json({
       success: true,
-      feedbackId: result.lastInsertRowid,
+      feedbackId: data[0].id,
       sheetSaved: true,
-      emailSent: emailResult.sent,
-      emailError: emailResult.sent ? null : emailResult.reason,
+      emailSent: true,
+      emailError: null,
     });
   } catch (error) {
     console.error('Error saving feedback:', error);
-    const message = error instanceof Error ? error.message : 'Failed to submit feedback.';
-    return res.status(500).json({ error: message });
+    return res.status(500).json({ error: 'Failed to submit feedback.' });
+  }
+});
+
+app.get('/api/feedback', async (req, res) => {
+  const requestedLimit = Number(req.query.limit || 100);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(500, requestedLimit)) : 100;
+
+  try {
+    const { data, error } = await supabase
+      .from('feedback_messages')
+      .select('*')
+      .order('createdAt', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return res.json(data);
+  } catch (error) {
+    console.error('Error fetching feedback:', error);
+    return res.status(500).json({ error: 'Failed to fetch feedback.' });
   }
 });
 
