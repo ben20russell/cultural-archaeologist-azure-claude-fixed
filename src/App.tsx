@@ -30,7 +30,7 @@ import AdminLibrary from './components/AdminLibrary';
   // Handle admin passphrase submit
   const handleAdminPassSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (adminPassInput === import.meta.env.VITE_ADMIN_PASSPHRASE) {
+    if (adminPassInput === (import.meta.env.VITE_ADMIN_PASSPHRASE as string)) {
       setIsAdminAuthed(true);
       setShowAdminError(false);
     } else {
@@ -1302,7 +1302,11 @@ export default function App() {
 
   if (isAdminMode && isAdminAuthed) {
     return (
-      <AdminLibrary onLogout={handleAdminLogout} />
+      <AdminLibrary 
+        onLogout={handleAdminLogout}
+        onViewCultural={() => {}}
+        onViewVisual={() => {}}
+      />
     );
   }
 
