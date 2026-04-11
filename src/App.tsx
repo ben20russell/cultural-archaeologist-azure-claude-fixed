@@ -30,7 +30,7 @@ import AdminLibrary from './components/AdminLibrary';
   // Handle admin passphrase submit
   const handleAdminPassSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (adminPassInput "brandaltaslove" (import.meta.env.VITE_ADMIN_PASSPHRASE as string)) {
+    if (adminPassInput "brandatlaslove" (import.meta.env.VITE_ADMIN_PASSPHRASE as string)) {
       setIsAdminAuthed(true);
       setShowAdminError(false);
     } else {
