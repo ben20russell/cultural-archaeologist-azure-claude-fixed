@@ -583,40 +583,8 @@ export default function App() {
     return () => clearInterval(progressInterval);
   }, [isLoading]);
 
-  // Auto-detect missing fields based on provided fields
-  useEffect(() => {
-    if (hasQuotaError) return;
 
-    const hasBrand = !!brand.trim();
-    const hasAudience = !!audience.trim();
-    const hasTopic = !!topicFocus.trim();
-
-    const filledCount = [hasBrand, hasAudience, hasTopic].filter(Boolean).length;
-    
-    // Only auto-populate if 1 or 2 fields are filled, and at least 1 is empty
-    if (filledCount === 0 || filledCount === 3) return;
-    
-    const timer = setTimeout(async () => {
-      setIsDetecting(true);
-      try {
-        const result = await autoPopulateFields(brand, audience, topicFocus);
-        if (result.brand && !hasBrand) setBrand(result.brand);
-        if (result.audience && !hasAudience) setAudience(result.audience);
-        if (result.topicFocus && !hasTopic) setTopicFocus(result.topicFocus);
-      } catch (err: unknown) {
-        console.error("Failed to auto-populate fields:", err);
-        const errorMessage = getErrorMessage(err);
-        if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-          setHasQuotaError(true);
-          setToast('API quota exceeded. Auto-detect disabled.');
-        }
-      } finally {
-        setIsDetecting(false);
-      }
-    }, 1500); // 1.5 second debounce
-
-    return () => clearTimeout(timer);
-  }, [brand, audience, topicFocus, hasQuotaError]);
+  // Auto-populate is now disabled; results only generate on explicit user action (Generate button)
 
   // Fetch brand suggestions as user types
   useEffect(() => {
