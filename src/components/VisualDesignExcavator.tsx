@@ -1,5 +1,59 @@
 import { ProgressiveLoader } from './ProgressiveLoader';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+// Loader state for all visuals
+const useAllVisualsLoaded = (report, bestVisualsByBrand) => {
+  const [allVisualsLoaded, setAllVisualsLoaded] = useState(false);
+  const [expectedCount, setExpectedCount] = useState(0);
+  const loadedCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!report || !bestVisualsByBrand) {
+      setAllVisualsLoaded(false);
+      setExpectedCount(0);
+      loadedCountRef.current = 0;
+      return;
+    }
+    // Count all logo + visual images for all brands
+    let count = 0;
+    report.brandProfiles.forEach((profile) => {
+      const visuals = bestVisualsByBrand[profile.brandName];
+      if (visuals) {
+        // logo
+        if (visuals.deterministicLogoUrl) count += 1;
+        // visual reference cards
+        count += visuals.images.length;
+      }
+    });
+    setExpectedCount(count);
+    loadedCountRef.current = 0;
+    setAllVisualsLoaded(count === 0); // If no images, consider loaded
+  }, [report, bestVisualsByBrand]);
+
+  const handleImageLoad = useCallback(() => {
+    loadedCountRef.current += 1;
+    if (loadedCountRef.current >= expectedCount && expectedCount > 0) {
+      setAllVisualsLoaded(true);
+    }
+  }, [expectedCount]);
+
+  const handleImageError = useCallback(() => {
+    loadedCountRef.current += 1;
+    if (loadedCountRef.current >= expectedCount && expectedCount > 0) {
+      setAllVisualsLoaded(true);
+    }
+  }, [expectedCount]);
+
+  // Reset on new report
+  useEffect(() => {
+    if (!report) {
+      setAllVisualsLoaded(false);
+      setExpectedCount(0);
+      loadedCountRef.current = 0;
+    }
+  }, [report]);
+
+  return { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount };
+};
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2,
@@ -335,6 +389,8 @@ function dedupeVisualCards(cards: BrandVisualCard[]): BrandVisualCard[] {
 }
 
 export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
+  // Loader for all visuals
+  const { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount } = useAllVisualsLoaded(report, bestVisualsByBrand);
   const [brands, setBrands] = useState([
     { id: 'brand-1', name: '', website: '' },
     { id: 'brand-2', name: '', website: '' },
@@ -1460,7 +1516,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full px-2 sm:px-0">
       {/* Top Navigation / Actions */}
       <div className="absolute top-6 right-6 z-50 no-print flex items-center gap-2">
         <button
@@ -1516,7 +1572,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         </p>
       </motion.div>
 
-      <div className="w-full max-w-4xl mx-auto">
+      <div className="w-full max-w-4xl mx-auto space-y-6 md:space-y-8">
 
       {isSearchControlsMinimized && report && !isLoading && (
         <motion.div
@@ -1547,7 +1603,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         transition={{ duration: 0.5, delay: 0.1 }}
         onSubmit={handleSubmit}
         noValidate
-        className={`w-full relative flex flex-col gap-4 bg-white rounded-3xl border border-zinc-200 shadow-sm p-6 md:p-8 space-y-4 ${isSearchControlsMinimized ? 'hidden' : ''}`}
+        className={`w-full relative flex flex-col gap-4 bg-white rounded-3xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8 space-y-4 ${isSearchControlsMinimized ? 'hidden' : ''}`}
       >
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -1555,7 +1611,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             <span className="text-xs text-zinc-400">{brandCount}/6 filled</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4 sm:space-y-3">
             {brands.map((brand, idx) => (
               <div key={brand.id} className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_1fr_auto] gap-3 items-center">
                 <div className="relative md:col-auto">
@@ -1609,7 +1665,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div className="relative md:col-span-2">
             <Crosshair className="absolute left-4 top-4 w-5 h-5 text-zinc-400" />
             <textarea
@@ -1673,7 +1729,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         {error && <p className="text-sm text-red-500">{error}</p>}
       </motion.form>
 
-      <p className={`text-xs text-zinc-400 text-center mt-3 select-none ${isSearchControlsMinimized ? 'hidden' : ''}`}>
+      <p className={`text-xs text-zinc-400 text-center mt-4 sm:mt-3 select-none ${isSearchControlsMinimized ? 'hidden' : ''}`}>
         AI models can make mistakes. Always double check your work. Remember to think critically.
       </p>
 
@@ -1681,6 +1737,17 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
       <AnimatePresence mode="wait">
         {report && (
+          // Loader overlay until all visuals are loaded
+          !allVisualsLoaded && expectedCount > 0 ? (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+              <ProgressiveLoader
+                messages={['Loading all visual design elements...']}
+                showProgress
+                progress={Math.min(100, Math.round((expectedCount ? (100 * (expectedCount - (expectedCount - (allVisualsLoaded ? expectedCount : 0)))) / expectedCount : 0)))}
+              />
+              <span className="mt-4 text-zinc-500 text-sm">Preparing results...</span>
+            </div>
+          ) : null
           <motion.div
             key="brand-deep-dive-report"
             initial={{ opacity: 0, y: 20 }}
@@ -1850,8 +1917,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                                     referrerPolicy="origin"
                                     data-original-src={image.url}
                                     data-fallback-chain={fallbackChain}
-                                    onLoad={() => clearVisualFailureState(cardKey)}
-                                    onError={(event) => handleVisualImageError(event, cardKey)}
+                                    onLoad={e => { clearVisualFailureState(cardKey); handleImageLoad(); }}
+                                    onError={event => { handleVisualImageError(event, cardKey); handleImageError(); }}
                                     className={visualClass}
                                   />
                                 </a>
@@ -1863,8 +1930,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                                   referrerPolicy="origin"
                                   data-original-src={image.url}
                                   data-fallback-chain={fallbackChain}
-                                  onLoad={() => clearVisualFailureState(cardKey)}
-                                  onError={(event) => handleVisualImageError(event, cardKey)}
+                                  onLoad={e => { clearVisualFailureState(cardKey); handleImageLoad(); }}
+                                  onError={event => { handleVisualImageError(event, cardKey); handleImageError(); }}
                                   className={visualClass}
                                 />
                               )}
@@ -1906,7 +1973,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               alt={`${profile.brandName} Logo`}
                               className="max-h-24 max-w-full object-contain transition-all duration-500"
                               style={processed?.base64Placeholder ? { filter: 'blur(6px)', transform: 'scale(1.08)' } : undefined}
-                              onLoad={(e) => {
+                              onLoad={e => {
                                 const img = e.currentTarget;
                                 const highRes = img.dataset.highRes;
                                 if (highRes) {
@@ -1918,9 +1985,10 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                                   img.style.filter = '';
                                   img.style.transform = '';
                                 }
+                                handleImageLoad();
                               }}
                               data-fallback-chain={logoFallbackChain}
-                              onError={advanceImageFallback}
+                              onError={e => { advanceImageFallback(e); handleImageError(); }}
                             />
                           </div>
                         );
