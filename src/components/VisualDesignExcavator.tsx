@@ -6,82 +6,84 @@ const useAllVisualsLoaded = (report, bestVisualsByBrand) => {
   const [expectedCount, setExpectedCount] = useState(0);
   const loadedCountRef = useRef(0);
 
-  useEffect(() => {
-    if (!report || !bestVisualsByBrand) {
-      setAllVisualsLoaded(false);
-      setExpectedCount(0);
-      loadedCountRef.current = 0;
-      return;
-    }
-    // Count all logo + visual images for all brands
-    let count = 0;
-    report.brandProfiles.forEach((profile) => {
-      const visuals = bestVisualsByBrand[profile.brandName];
-      if (visuals) {
-        // logo
-        if (visuals.deterministicLogoUrl) count += 1;
-        // visual reference cards
-        count += visuals.images.length;
-      }
-    });
-    setExpectedCount(count);
-    loadedCountRef.current = 0;
-    setAllVisualsLoaded(count === 0); // If no images, consider loaded
-  }, [report, bestVisualsByBrand]);
-
-  const handleImageLoad = useCallback(() => {
-    loadedCountRef.current += 1;
-    if (loadedCountRef.current >= expectedCount && expectedCount > 0) {
-      setAllVisualsLoaded(true);
-    }
-  }, [expectedCount]);
-
-  const handleImageError = useCallback(() => {
-    loadedCountRef.current += 1;
-    if (loadedCountRef.current >= expectedCount && expectedCount > 0) {
-      setAllVisualsLoaded(true);
-    }
-  }, [expectedCount]);
-
-  // Reset on new report
-  useEffect(() => {
-    if (!report) {
-      setAllVisualsLoaded(false);
-      setExpectedCount(0);
-      loadedCountRef.current = 0;
-    }
-  }, [report]);
-
-  return { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount };
-};
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Loader2,
-  Building2,
-  Crosshair,
-  Users,
-  Clock,
-  Plus,
-  Trash2,
-  Type,
-  Palette,
-  ImageIcon,
-  Sparkles,
-  RefreshCw,
-  Search,
-  ExternalLink,
-  Share2,
-  Info,
-  Presentation,
-  FileText,
-} from 'lucide-react';
-import pptxgen from 'pptxgenjs';
-import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
-import { supabase } from '../services/supabase-client';
-import { Accordion } from './Accordion';
-
-interface BrandDeepDivePageProps {
-  onBack: () => void;
+      <AnimatePresence mode="wait">
+        {report && (
+          <>
+            {/* Loader overlay until all visuals are loaded */}
+            {(!allVisualsLoaded && expectedCount > 0) && (
+              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
+                <ProgressiveLoader
+                  messages={['Loading all visual design elements...']}
+                  showProgress
+                  progress={Math.min(100, Math.round((expectedCount ? (100 * (expectedCount - (expectedCount - (allVisualsLoaded ? expectedCount : 0)))) / expectedCount : 0)))}
+                />
+                <span className="mt-4 text-zinc-500 text-sm">Preparing results...</span>
+              </div>
+            )}
+            {allVisualsLoaded && (
+              <motion.div
+                key="brand-deep-dive-report"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full max-w-4xl mx-auto mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
+              >
+                {/* ...existing code for the report UI... */}
+                <section className="lg:col-span-2 bg-white rounded-3xl border border-zinc-200 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setResultTab('profiles')}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${resultTab === 'profiles' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'}`}
+                    >
+                      Brand Profiles
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResultTab('compare')}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${resultTab === 'compare' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'}`}
+                    >
+                      Visual Compare
+                    </button>
+                    {resultTab === 'compare' && (
+                      <select
+                        value={compareElement}
+                        onChange={(e) => setCompareElement(e.target.value as CompareElement)}
+                        className="ml-auto px-3 py-2 rounded-xl border border-zinc-200 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      >
+                        <option value="primaryColors">Primary Colors</option>
+                        <option value="accentColors">Accent Colors</option>
+                        <option value="neutrals">Neutrals</option>
+                        <option value="typography">Typography</option>
+                        <option value="imageryStyle">Imagery Style</option>
+                      </select>
+                    )}
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={exportToPPTX}
+                        disabled={isExporting}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-full text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm disabled:opacity-50"
+                      >
+                        <Presentation className="w-4 h-4" /> PPTX <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={exportToPDF}
+                        disabled={isExporting}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-full text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm disabled:opacity-50"
+                      >
+                        <FileText className="w-4 h-4" /> PDF <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-500 border border-indigo-100">Beta</span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
+                {/* ...rest of the report UI remains unchanged... */}
+              </motion.div>
+            )}
+          </>
+        )}
+      </AnimatePresence>
 }
 
 type VisualMethod = 'deterministic' | 'screenshot';
@@ -507,8 +509,8 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     const trimmed = newName.trim();
     if (!trimmed) return;
     const { data, error } = await supabase
-      .from('brand_deep_dives')
-      .update({ custom_name: trimmed })
+      .from('visual_deep_dives')
+      .update({ customName: trimmed })
       .eq('id', id)
       .select();
     if (!error && data) {
@@ -527,7 +529,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     if (!deleted) return;
 
     const { error } = await supabase
-      .from('brand_deep_dives')
+      .from('visual_deep_dives')
       .delete()
       .eq('id', id);
 
@@ -558,17 +560,14 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     }
 
     // Re-insert into Supabase
-    const { error } = await supabase.from('brand_deep_dives').insert([
-      {
-        id: recentlyDeletedSearch.id,
-        brands: recentlyDeletedSearch.brands,
-        analysis_objective: recentlyDeletedSearch.analysisObjective,
-        target_audience: recentlyDeletedSearch.targetAudience,
-        report: recentlyDeletedSearch.report,
-        custom_name: recentlyDeletedSearch.customName,
-        created_at: recentlyDeletedSearch.date,
-      },
-    ]);
+    const { error } = await supabase.from('visual_deep_dives').insert([{
+      id: recentlyDeletedSearch.id,
+      brands: recentlyDeletedSearch.brands,
+      analysisObjective: recentlyDeletedSearch.analysisObjective,
+      targetAudience: recentlyDeletedSearch.targetAudience,
+      report: recentlyDeletedSearch.report,
+      customName: recentlyDeletedSearch.customName
+    }]);
     if (!error) {
       const updated = [recentlyDeletedSearch, ...savedSearches.filter((item) => item.id !== recentlyDeletedSearch.id)];
       setSavedSearches(updated);
@@ -581,20 +580,17 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   useEffect(() => {
     // Load saved deep dives from Supabase
     (async () => {
-      const { data, error } = await supabase
-        .from('brand_deep_dives')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('visual_deep_dives').select('*').order('createdAt', { ascending: false });
       if (!error && Array.isArray(data)) {
         setSavedSearches(
           data.map((row) => ({
             id: row.id,
-            date: row.created_at,
+            date: row.createdAt,
             brands: row.brands,
-            analysisObjective: row.analysis_objective,
-            targetAudience: row.target_audience,
+            analysisObjective: row.analysisObjective,
+            targetAudience: row.targetAudience,
             report: row.report,
-            customName: row.custom_name,
+            customName: row.customName,
           }))
         );
       } else {
@@ -740,16 +736,13 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
       };
       // Persist to Supabase
       try {
-        const { data, error } = await supabase.from('brand_deep_dives').insert([
-          {
-            id: nextSaved.id,
-            brands: normalizedBrands,
-            analysis_objective: analysisObjective,
-            target_audience: targetAudience,
-            report: result,
-            created_at: nextSaved.date,
-          },
-        ]).select();
+        const { data, error } = await supabase.from('visual_deep_dives').insert([{
+          id: nextSaved.id,
+          brands: normalizedBrands,
+          analysisObjective: analysisObjective,
+          targetAudience: targetAudience || null,
+          report: result
+        }]).select();
         if (!error && data) {
           setSavedSearches((prev) => [nextSaved, ...prev.filter((item) => item.id !== nextSaved.id)].slice(0, 20));
         }
@@ -810,16 +803,13 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         };
         // Persist to Supabase
         try {
-          const { data, error } = await supabase.from('brand_deep_dives').insert([
-            {
-              id: nextSaved.id,
-              brands: normalizedBrands,
-              analysis_objective: analysisObjective,
-              target_audience: targetAudience,
-              report: result.report,
-              created_at: nextSaved.date,
-            },
-          ]).select();
+          const { data, error } = await supabase.from('visual_deep_dives').insert([{
+            id: nextSaved.id,
+            brands: normalizedBrands,
+            analysisObjective: analysisObjective,
+            targetAudience: targetAudience || null,
+            report: result.report
+          }]).select();
           if (!error && data) {
             setSavedSearches((prev) => [nextSaved, ...prev.filter((item) => item.id !== nextSaved.id)].slice(0, 20));
           }
