@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: undefined, // Let Vite/Rollup handle chunk splitting
         },
       },
-      chunkSizeWarningLimit: 1200, // Increase chunk size warning limit (in KB)
+      chunkSizeWarningLimit: 2000, // Increase chunk size warning limit (in KB)
     },
     test: {
       environment: 'jsdom',
