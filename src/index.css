@@ -1,35 +1,12 @@
 /* Consistent fuchsia outline for main white boxes on hover/focus */
-
-/* Gradient border for main boxes (matches animation gradient) */
 .main-box-hover {
-  position: relative;
-  outline: none;
-  z-index: 0;
-}
-.main-box-hover::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(90deg, #6366f1 0%, #a21caf 50%, #ec4899 100%);
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  mask:
-    linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  padding: 2px;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.main-box-hover:hover::after,
-.main-box-hover:focus-visible::after {
-  opacity: 1;
+  outline: 2px solid transparent;
+  outline-offset: 0px;
 }
 .main-box-hover:hover,
 .main-box-hover:focus-visible {
+  outline: 2px solid #d946ef !important;
+  outline-offset: 0px !important;
   box-shadow: none !important;
 }
 @import "tailwindcss";
