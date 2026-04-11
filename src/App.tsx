@@ -10,35 +10,6 @@ import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from './serv
 import { generateCulturalMatrix, autoPopulateFields, suggestBrands, askMatrixQuestion, generateDeepDive, generateDeepDivesBatch } from './services/azure-openai';
 import { SplashGrid } from './components/SplashGrid';
 import { BrandDeepDivePage } from './components/VisualDesignExcavator';
-import AdminDashboard from './components/AdminDashboard';
-  // --- ADMIN DASHBOARD STATE ---
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
-  const [adminVisualRecord, setAdminVisualRecord] = useState<any>(null);
-  const [adminCulturalRecord, setAdminCulturalRecord] = useState<any>(null);
-
-  // Check for admin route on mount
-  useEffect(() => {
-    const isAdminRoute = new URLSearchParams(window.location.search).get('admin') === 'true';
-    setShowAdminDashboard(isAdminRoute);
-  }, []);
-
-
-
-  // --- ADMIN: Password Auth ---
-  const [adminPass, setAdminPass] = useState('');
-  const [adminError, setAdminError] = useState<string | null>(null);
-  const handleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    // @ts-ignore
-    const passphrase = (import.meta.env.VITE_ADMIN_PASSPHRASE as string | undefined) || '';
-    if (adminPass === passphrase) {
-      setIsAdminAuthenticated(true);
-      setAdminError(null);
-    } else {
-      setAdminError('Incorrect passphrase.');
-    }
-  };
 import { TrendLifecycleBadge } from './components/TrendLifecycleBadge';
 import { ProgressiveLoader } from './components/ProgressiveLoader';
 import { Accordion } from './components/Accordion';
@@ -1250,43 +1221,6 @@ export default function App() {
       setHasApiKey(true);
     }
   };
-
-  // --- ADMIN DASHBOARD RENDER LOGIC ---
-  if (showAdminDashboard) {
-    if (!isAdminAuthenticated) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] text-zinc-900 font-sans p-4">
-          <form
-            onSubmit={handleAdminLogin}
-            className="bg-white p-8 md:p-12 rounded-3xl border border-zinc-200 shadow-xl max-w-sm w-full text-center"
-          >
-            <h1 className="text-2xl font-bold mb-4 text-zinc-900">Admin Access</h1>
-            <p className="text-zinc-600 mb-8 text-base">Enter the admin passphrase to access the Master Admin Library.</p>
-            <input
-              type="password"
-              value={adminPass}
-              onChange={e => setAdminPass(e.target.value)}
-              placeholder="Admin Passphrase"
-              className="w-full px-4 py-3 mb-4 border border-zinc-200 rounded-xl text-zinc-900 bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              autoFocus
-            />
-            {adminError && <div className="text-red-500 text-sm mb-3">{adminError}</div>}
-            <button
-              type="submit"
-              className="w-full py-3 px-6 bg-zinc-900 hover:bg-zinc-800 text-white font-medium rounded-xl transition-all shadow-lg shadow-zinc-200 hover:shadow-zinc-300"
-            >
-              Enter
-            </button>
-          </form>
-        </div>
-      );
-    }
-    return (
-      <AdminDashboard
-        onBack={() => { setShowAdminDashboard(false); }}
-      />
-    );
-  }
 
   if (hasApiKey === false) {
     return (

@@ -63,25 +63,11 @@ const useAllVisualsLoaded = (
 
   return { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount };
 };
-
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, RefreshCw, Info, Sparkles, Building2, Users, Trash2, Plus, Crosshair, Loader2, Presentation, FileText, ImageIcon, Type, Palette, Clock, ExternalLink, Share2 } from 'lucide-react';
 import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
 import { supabase } from '../services/supabase-client';
 import { Accordion } from './Accordion';
-
-// --- ADMIN INJECTION PATCH ---
-interface AdminVisualRecord {
-  brands: Array<{ name: string; website?: string }>; // DB row
-  analysis_objective: string;
-  target_audience: string;
-  report: BrandDeepDiveReport;
-}
-
-interface BrandDeepDivePageProps {
-  onBack: () => void;
-  loadedAdminRecord?: AdminVisualRecord | null;
-}
 
 interface BrandDeepDivePageProps {
   onBack: () => void;
@@ -391,7 +377,7 @@ function dedupeVisualCards(cards: BrandVisualCard[]): BrandVisualCard[] {
   });
 }
 
-export function BrandDeepDivePage({ onBack, loadedAdminRecord }: BrandDeepDivePageProps) {
+export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [brands, setBrands] = useState<Array<{ id: string; name: string; website: string }>>([
     { id: 'brand-1', name: '', website: '' },
     { id: 'brand-2', name: '', website: '' },
@@ -407,30 +393,6 @@ export function BrandDeepDivePage({ onBack, loadedAdminRecord }: BrandDeepDivePa
   const [error, setError] = useState<string | null>(null);
 
   const [report, setReport] = useState<BrandDeepDiveReport | null>(null);
-    // --- ADMIN INJECTION PATCH ---
-    useEffect(() => {
-      if (loadedAdminRecord) {
-        // Map DB row to state
-        setBrands(
-          (loadedAdminRecord.brands || []).map((b, idx) => ({
-            id: `admin-brand-${idx}`,
-            name: b.name,
-            website: b.website || '',
-          }))
-        );
-        setAnalysisObjective(loadedAdminRecord.analysis_objective || '');
-        setTargetAudience(loadedAdminRecord.target_audience || '');
-        setReport(loadedAdminRecord.report || null);
-        setResultTab('profiles');
-        setShowValidation(false);
-        setError(null);
-        setProcessedLogos({});
-        requestedLogosRef.current.clear();
-        setHeroImages({});
-        setLogoImages({});
-        requestedHeroRef.current.clear();
-      }
-    }, [loadedAdminRecord]);
   const [reportQuestion, setReportQuestion] = useState('');
   const [reportAnswer, setReportAnswer] = useState('');
   const [isSubmittingPrompt, setIsSubmittingPrompt] = useState(false);
