@@ -71,8 +71,24 @@ export function ProgressiveLoader({
 
   const currentMessage = safeMessages[messageIndex];
 
+  // Find the longest message for min-width reservation
+  const longestMessage = useMemo(() => {
+    let max = '';
+    for (const msg of safeMessages) {
+      if (msg.length > max.length) max = msg;
+    }
+    return max;
+  }, [safeMessages]);
+
+  // Add space for progress percentage if shown
+  const minWidthText = showProgress ? `${longestMessage} 100%` : longestMessage;
+
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`.trim()}>
+    <span className={`inline-flex items-center gap-2 ${className}`.trim()} style={{ minWidth: `${minWidthText.length + 2}ch` }}>
+      {/* Visually hidden span to reserve space for the longest message */}
+      <span aria-hidden="true" className="invisible absolute whitespace-pre pointer-events-none select-none">
+        {minWidthText}
+      </span>
       <span>{currentMessage}</span>
       {showProgress && <span>{Math.round(displayedProgress)}%</span>}
     </span>
