@@ -618,7 +618,7 @@ export default function App() {
       setBrandSuggestions(prev => prev.length === 0 ? prev : []);
       return;
     }
-    
+
     // Don't suggest if the brand matches an existing saved search exactly
     if (visibleSavedMatrices.some(sm => sm.brand.toLowerCase() === brand.trim().toLowerCase())) {
       setBrandSuggestions(prev => prev.length === 0 ? prev : []);
@@ -628,14 +628,24 @@ export default function App() {
     const timer = setTimeout(async () => {
       setIsSuggestingBrands(true);
       try {
-        const suggestions = await suggestBrands(brand);
-        setBrandSuggestions(Array.isArray(suggestions) ? suggestions : []);
-      } catch (err: unknown) {
-        const errorMessage = getErrorMessage(err);
-        setToast('Failed to get brand suggestions. Please try again.');
-        if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-          setHasQuotaError(true);
+        let suggestions: string[] = [];
+        try {
+          suggestions = await suggestBrands(brand);
+        } catch (err: unknown) {
+          // Log error for debugging, but do not crash
+          console.error('Brand suggestion error:', err);
+          setToast('Failed to get brand suggestions. Please try again.');
+          const errorMessage = getErrorMessage(err);
+          if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+            setHasQuotaError(true);
+          }
         }
+        setBrandSuggestions(Array.isArray(suggestions) ? suggestions : []);
+      } catch (outerErr) {
+        // Defensive: catch any unexpected errors
+        console.error('Unexpected error in brand suggestion effect:', outerErr);
+        setBrandSuggestions([]);
+        setToast('An unexpected error occurred while suggesting brands.');
       } finally {
         setIsSuggestingBrands(false);
       }
