@@ -1701,6 +1701,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                 ]}
                 showProgress
                 progress={fakeProgress}
+                averageDurationMs={4000}
               />
             ) : (
               <>
@@ -1738,6 +1739,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   messages={['Loading all visual design elements...']}
                   showProgress
                   progress={Math.min(100, Math.round((expectedCount ? (100 * (expectedCount - (expectedCount - (allVisualsLoaded ? expectedCount : 0)))) / expectedCount : 0)))}
+                  averageDurationMs={4000}
                 />
                 <span className="mt-4 text-zinc-500 text-sm">Preparing results...</span>
               </div>

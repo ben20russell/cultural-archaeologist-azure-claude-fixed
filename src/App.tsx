@@ -302,7 +302,7 @@ export default function App() {
   const brandDropdownRef = useRef<HTMLDivElement>(null);
   
   const [isLoading, setIsLoading] = useState(false);
-  const [fakeProgress, setFakeProgress] = useState(0);
+    const [fakeProgress, setFakeProgress] = useState(5);
   const [isExporting, setIsExporting] = useState(false);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [matrix, setMatrix] = useState<CulturalMatrix | null>(null);
@@ -450,34 +450,26 @@ export default function App() {
       setShowSplash(false);
       return;
     }
-    if (!showSplash) {
-      return;
-    }
-
     if (isSplashHeld) {
       if (splashStartedAtRef.current !== null) {
         const elapsed = Date.now() - splashStartedAtRef.current;
         splashRemainingMsRef.current = Math.max(0, splashRemainingMsRef.current - elapsed);
         splashStartedAtRef.current = null;
       }
-
       if (splashTimeoutRef.current) {
         clearTimeout(splashTimeoutRef.current);
         splashTimeoutRef.current = null;
       }
       return;
     }
-
     if (splashRemainingMsRef.current <= 0) {
       setShowSplash(false);
       return;
     }
-
     splashStartedAtRef.current = Date.now();
     splashTimeoutRef.current = setTimeout(() => {
       setShowSplash(false);
     }, splashRemainingMsRef.current);
-
     return () => {
       if (splashTimeoutRef.current) {
         clearTimeout(splashTimeoutRef.current);
@@ -2198,6 +2190,7 @@ export default function App() {
                   className="text-xs whitespace-nowrap leading-none"
                   showProgress
                   progress={fakeProgress}
+                  averageDurationMs={4000}
                 />
               ) : (
                 <>

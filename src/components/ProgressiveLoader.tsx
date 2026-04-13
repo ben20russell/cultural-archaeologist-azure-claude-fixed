@@ -6,9 +6,9 @@ type ProgressiveLoaderProps = {
   showProgress?: boolean;
   progress?: number;
   /**
-   * Optional: average duration (ms) for the loading process, used to pace the progress bar more realistically
+   * Required: average duration (ms) for the loading process, used to pace the progress bar more realistically
    */
-  averageDurationMs?: number;
+  averageDurationMs: number;
 };
 
 export function ProgressiveLoader({
@@ -16,7 +16,7 @@ export function ProgressiveLoader({
   className = '',
   showProgress = false,
   progress = 0,
-  averageDurationMs = 4000,
+  averageDurationMs,
 }: ProgressiveLoaderProps) {
   const safeMessages = useMemo(() => {
     if (messages.length > 0) {
@@ -36,25 +36,33 @@ export function ProgressiveLoader({
       return;
     }
     if (progress > displayedProgress) {
-      // Estimate time remaining based on averageDurationMs and current progress
-      const remaining = Math.max(progress - displayedProgress, 1);
-      // Slow down as we approach 100%
+      // Split the animation into 4 quarters based on averageDurationMs
+      // Each quarter has a different pace (faster at first, slower at end)
+      const percent = displayedProgress;
       let baseInterval = 40;
-      let slowZone = progress > 85;
-      if (slowZone) {
-        // In the last 15%, slow down the interval
-        baseInterval = 120;
+      let step = 1;
+      if (percent < 25) {
+        // First quarter: fast
+        baseInterval = Math.max(10, averageDurationMs / 100);
+        step = 2;
+      } else if (percent < 50) {
+        // Second quarter: moderate
+        baseInterval = Math.max(20, averageDurationMs / 80);
+        step = 1.5;
+      } else if (percent < 75) {
+        // Third quarter: slower
+        baseInterval = Math.max(30, averageDurationMs / 60);
+        step = 1;
+      } else {
+        // Last quarter: slowest
+        baseInterval = Math.max(40, averageDurationMs / 40);
+        step = 0.5;
       }
-      // Optionally, further slow in the last 3%
-      if (progress > 97) {
-        baseInterval = 250;
-      }
-      // Optionally, use averageDurationMs to pace the increments
-      const estimatedStep = Math.max(1, Math.round((progress - displayedProgress) / 8));
+      // Never overshoot the target progress
       const interval = setInterval(() => {
         setDisplayedProgress((prev) => {
           if (prev >= progress) return prev;
-          return Math.min(prev + estimatedStep, progress);
+          return Math.min(prev + step, progress);
         });
       }, baseInterval);
       return () => clearInterval(interval);
