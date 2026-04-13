@@ -596,7 +596,7 @@ export default function App() {
   }, [isLoading]);
 
 
-  // Auto-populate is now disabled; results only generate on explicit user action (Generate button)
+
 
   // Fetch brand suggestions as user types
   useEffect(() => {
