@@ -87,7 +87,7 @@ describe('BrandDeepDivePage', () => {
       }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
     await screen.findByText(/Ask the Archaeologist/i);
 
@@ -128,7 +128,7 @@ describe('BrandDeepDivePage', () => {
       }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
     const [logo] = await screen.findAllByAltText('Aesop Logo');
     expect(logo).toHaveAttribute('src', expect.stringContaining('www.aesop.com'));
@@ -153,7 +153,7 @@ describe('BrandDeepDivePage', () => {
       }
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /generate visual identity deep dive/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
     await screen.findByText(/Ask the Archaeologist/i);
 

@@ -1737,7 +1737,31 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             exit={{ opacity: 0, y: -20 }}
             className="w-full max-w-4xl mx-auto mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
           >
-            {/* ...existing code for the report panel... */}
+            {/* Brand Deep Dive Report Panel */}
+            {report.brandProfiles.map((profile, idx) => {
+              const visuals = bestVisualsByBrand[profile.brandName];
+              const logoUrl = visuals?.images?.[0]?.url || '';
+              return (
+                <div key={profile.brandName} className="bg-white rounded-2xl border border-zinc-200 p-6 mb-6 flex flex-col items-center">
+                  <h2 className="text-2xl font-semibold text-zinc-900 mb-2">{profile.brandName}</h2>
+                  {logoUrl && (
+                    <img
+                      src={logoUrl}
+                      alt={`${profile.brandName} Logo`}
+                      className="w-32 h-32 object-contain mb-4 border border-zinc-100 bg-zinc-50 rounded-xl"
+                      onLoad={handleImageLoad}
+                      onError={(e) => handleVisualImageError(e, `${profile.brandName}-visual-0`)}
+                    />
+                  )}
+                  <div className="w-full text-left">
+                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Website:</span> {profile.website}</p>
+                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Distinctiveness:</span> {profile.distinctivenessAssessment}</p>
+                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Logo System:</span> Primary: {profile.logo.mainLogo}, Wordmark: {profile.logo.wordmarkLogotype}</p>
+                    <p className="text-sm text-zinc-700 mb-2"><span className="font-medium">Typography:</span> {profile.typography.fontFamilies.join(', ')}</p>
+                  </div>
+                </div>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
