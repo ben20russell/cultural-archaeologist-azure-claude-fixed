@@ -1,3 +1,11 @@
+  // Restore: Always minimize controls and show results panel immediately after report is generated
+  useEffect(() => {
+    if (report) {
+      setIsSearchControlsMinimized(true);
+    } else {
+      setIsSearchControlsMinimized(false);
+    }
+  }, [report]);
 import PptxGenJS from 'pptxgenjs';
 import { ProgressiveLoader } from './ProgressiveLoader';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -390,6 +398,16 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [showValidation, setShowValidation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fakeProgress, setFakeProgress] = useState(0);
+  // ...existing code...
+
+  // Restore: Always minimize controls and show results panel immediately after report is generated
+  useEffect(() => {
+    if (report) {
+      setIsSearchControlsMinimized(true);
+    } else {
+      setIsSearchControlsMinimized(false);
+    }
+  }, [report]);
   const [error, setError] = useState<string | null>(null);
 
   const [report, setReport] = useState<BrandDeepDiveReport | null>(null);
@@ -672,14 +690,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     };
   }, []);
 
-  // Always minimize controls and show results panel immediately after report is generated
-  useEffect(() => {
-    if (report) {
-      setIsSearchControlsMinimized(true);
-    } else {
-      setIsSearchControlsMinimized(false);
-    }
-  }, [report]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -717,7 +728,9 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         analysisObjective,
         targetAudience,
       });
+
       setReport(result);
+      setIsSearchControlsMinimized(true);
 
       const nextSaved: SavedDeepDiveSearch = {
         id: `deep-dive-${Date.now()}`,
