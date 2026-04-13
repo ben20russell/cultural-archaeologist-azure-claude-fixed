@@ -672,13 +672,14 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     };
   }, []);
 
+  // Always minimize controls and show results panel immediately after report is generated
   useEffect(() => {
-      if (report) {
-        setIsSearchControlsMinimized(true);
-        return;
-      }
+    if (report) {
+      setIsSearchControlsMinimized(true);
+    } else {
       setIsSearchControlsMinimized(false);
-    }, [report]);
+    }
+  }, [report]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

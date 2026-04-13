@@ -10,7 +10,7 @@ import { submitFeedbackToSupabase } from '../api/submitFeedbackToSupabase';
 
 const API_BASE_URL =
   (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL ||
-  'http://localhost:3001';
+  '/api';
 
 const MAX_MESSAGE_LENGTH = 2000;
 
