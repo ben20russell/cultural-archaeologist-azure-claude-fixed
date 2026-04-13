@@ -5,6 +5,10 @@ type ProgressiveLoaderProps = {
   className?: string;
   showProgress?: boolean;
   progress?: number;
+  /**
+   * Optional: average duration (ms) for the loading process, used to pace the progress bar more realistically
+   */
+  averageDurationMs?: number;
 };
 
 export function ProgressiveLoader({
@@ -12,6 +16,7 @@ export function ProgressiveLoader({
   className = '',
   showProgress = false,
   progress = 0,
+  averageDurationMs = 4000,
 }: ProgressiveLoaderProps) {
   const safeMessages = useMemo(() => {
     if (messages.length > 0) {
@@ -31,18 +36,32 @@ export function ProgressiveLoader({
       return;
     }
     if (progress > displayedProgress) {
-      const step = () => {
+      // Estimate time remaining based on averageDurationMs and current progress
+      const remaining = Math.max(progress - displayedProgress, 1);
+      // Slow down as we approach 100%
+      let baseInterval = 40;
+      let slowZone = progress > 85;
+      if (slowZone) {
+        // In the last 15%, slow down the interval
+        baseInterval = 120;
+      }
+      // Optionally, further slow in the last 3%
+      if (progress > 97) {
+        baseInterval = 250;
+      }
+      // Optionally, use averageDurationMs to pace the increments
+      const estimatedStep = Math.max(1, Math.round((progress - displayedProgress) / 8));
+      const interval = setInterval(() => {
         setDisplayedProgress((prev) => {
           if (prev >= progress) return prev;
-          return Math.min(prev + Math.max(1, Math.round((progress - prev) / 8)), progress);
+          return Math.min(prev + estimatedStep, progress);
         });
-      };
-      const interval = setInterval(step, 40);
+      }, baseInterval);
       return () => clearInterval(interval);
     } else if (progress < displayedProgress) {
       setDisplayedProgress(progress);
     }
-  }, [progress, displayedProgress]);
+  }, [progress, displayedProgress, averageDurationMs]);
 
   // Fallback: if stuck at 99% for >5s, force to 100%
   useEffect(() => {

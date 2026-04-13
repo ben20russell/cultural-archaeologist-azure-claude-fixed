@@ -1934,7 +1934,8 @@ export default function App() {
                         </>
                       )}
 
-                      {visibleSavedMatrices.length > 0 && (
+                      {/* Recent Searches is hidden for now. Code is preserved below for future use. */}
+                      {false && visibleSavedMatrices.length > 0 && (
                         <>
                           <div className="p-3 text-xs font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 flex items-center gap-2">
                             <Clock className="w-4 h-4" /> Recent Searches
@@ -2223,7 +2224,8 @@ export default function App() {
           </motion.form>
         </div>
 
-        {!matrix && !isLoading && visibleSavedMatrices.length > 0 && (
+        {/* Your Library is hidden for now. Code is preserved below for future use. */}
+        {false && !matrix && !isLoading && visibleSavedMatrices.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
