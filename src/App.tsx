@@ -303,6 +303,12 @@ export default function App() {
   
   const [isLoading, setIsLoading] = useState(false);
     const [fakeProgress, setFakeProgress] = useState(5);
+    // Track average load time for smoother progress pacing
+    const [averageLoadTime, setAverageLoadTime] = useState(() => {
+      const stored = localStorage.getItem('averageLoadTimeMs');
+      return stored ? parseFloat(stored) : 4000;
+    });
+    const loadTimesRef = useRef<number[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [matrix, setMatrix] = useState<CulturalMatrix | null>(null);
@@ -563,29 +569,42 @@ export default function App() {
 
     setFakeProgress(8);
     const startedAt = Date.now();
+    let finished = false;
     const progressInterval = setInterval(() => {
       setFakeProgress((prev) => {
+        if (finished) return prev;
         const elapsedMs = Date.now() - startedAt;
-        const ceiling =
-          elapsedMs < 4000
-            ? 86
-            : elapsedMs < 10000
-              ? 94
-              : elapsedMs < 20000
-                ? 97.5
-                : 99.2;
-
-        if (prev >= ceiling) {
-          return prev;
-        }
-
-        const step = Math.max(0.15, (ceiling - prev) * 0.08);
-        return Math.min(ceiling, prev + step);
+        // Cap at 97% for most of the load
+        const percent = Math.min(97, (elapsedMs / averageLoadTime) * 97);
+        if (prev >= percent) return prev;
+        return percent;
       });
-    }, 140);
+    }, 60);
 
-    return () => clearInterval(progressInterval);
-  }, [isLoading]);
+    // When loading completes, animate from current to 100% smoothly
+    const cleanup = () => {
+      finished = true;
+      clearInterval(progressInterval);
+      setFakeProgress((prev) => {
+        if (prev >= 100) return 100;
+        // Animate to 100% over 400ms
+        const step = (100 - prev) / 8;
+        let val = prev;
+        const anim = setInterval(() => {
+          val += step;
+          if (val >= 100) {
+            setFakeProgress(100);
+            clearInterval(anim);
+          } else {
+            setFakeProgress(val);
+          }
+        }, 50);
+        return prev;
+      });
+    };
+
+    return cleanup;
+  }, [isLoading, averageLoadTime]);
 
 
 
@@ -657,6 +676,7 @@ export default function App() {
 
     setFakeProgress(5);
     setIsLoading(true);
+    const searchStart = Date.now();
     setError(null);
     setShowValidation(false);
     setMatrixQuestion('');
@@ -734,6 +754,14 @@ export default function App() {
         setError('Failed to generate cultural archaeologist report. Please try again.');
       }
     } finally {
+      const searchEnd = Date.now();
+      const duration = searchEnd - searchStart;
+      // Update average load time (simple moving average, last 10 loads)
+      loadTimesRef.current.push(duration);
+      if (loadTimesRef.current.length > 10) loadTimesRef.current.shift();
+      const avg = loadTimesRef.current.reduce((a, b) => a + b, 0) / loadTimesRef.current.length;
+      setAverageLoadTime(avg);
+      localStorage.setItem('averageLoadTimeMs', String(avg));
       setFakeProgress(100);
       await new Promise((resolve) => setTimeout(resolve, 220));
       setIsLoading(false);
@@ -2197,14 +2225,7 @@ export default function App() {
                   <Sparkles className="w-5 h-5" /> Generate Insights
                 </>
               )}
-              {isLoading && (
-                <div className="absolute left-3 right-3 bottom-2 h-1 rounded-full bg-white/20">
-                  <div
-                    className="h-full rounded-full bg-fuchsia-400 transition-all duration-200"
-                    style={{ width: `${fakeProgress}%` }}
-                  />
-                </div>
-              )}
+              {/* Progress bar is now rendered inside ProgressiveLoader for alignment with % */}
             </button>
 
             <p className="subheader-copy text-xs text-zinc-400 text-center mt-2">
@@ -2645,7 +2666,8 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {matrix && visibleSavedMatrices.length > 0 && (
+        {/* Recent Searches at bottom of results is hidden for now. Code is preserved below for future use. */}
+        {false && matrix && visibleSavedMatrices.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -99,9 +99,19 @@ export function ProgressiveLoader({
   const currentMessage = safeMessages[messageIndex];
 
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`.trim()}>
-      <span>{currentMessage}</span>
-      {showProgress && <span>{Math.round(displayedProgress)}%</span>}
+    <span className={`inline-flex flex-col items-center gap-1 ${className}`.trim()}>
+      <span className="flex items-center gap-2">
+        <span>{currentMessage}</span>
+        {showProgress && <span className="tabular-nums font-mono relative">{Math.round(displayedProgress)}%</span>}
+      </span>
+      {showProgress && (
+        <span className="block w-full h-1 rounded-full bg-white/20 relative mt-1 min-w-[64px]">
+          <span
+            className="block h-full rounded-full bg-fuchsia-400 transition-all duration-200"
+            style={{ width: `${displayedProgress}%` }}
+          />
+        </span>
+      )}
     </span>
   );
 }
