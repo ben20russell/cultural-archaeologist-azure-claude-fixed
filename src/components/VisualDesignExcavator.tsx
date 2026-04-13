@@ -708,11 +708,20 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     setBestVisualsByBrand({});
 
     try {
+
       const result = await generateBrandDeepDive({
         brands: normalizedBrands,
         analysisObjective,
         targetAudience,
       });
+
+      console.log('BrandDeepDive result:', result);
+      if (!result) {
+        setError('No report was generated. Please try again or check your input.');
+        setReport(null);
+        setIsSearchControlsMinimized(false);
+        return;
+      }
 
       setReport(result);
       setIsSearchControlsMinimized(true);
