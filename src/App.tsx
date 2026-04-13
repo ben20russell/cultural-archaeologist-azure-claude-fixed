@@ -1390,7 +1390,7 @@ export default function App() {
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
                     <Sparkles className="w-4 h-4" /> Visual Design Excavator
-                    <span className="inline-flex items-center rounded-full border border-amber-300/80 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                    <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">
                       Beta
                     </span>
                   </div>
@@ -1426,6 +1426,9 @@ export default function App() {
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
               >
                 <Sparkles className="w-4 h-4" /> Visual Design Excavator
+                <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">
+                  Beta
+                </span>
               </button>
               <button
                 onClick={handleReset}
