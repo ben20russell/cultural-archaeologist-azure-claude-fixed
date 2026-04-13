@@ -2350,7 +2350,7 @@ export default function App() {
                   {isGeneratingDeepDives && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-full text-sm font-medium text-indigo-700 shadow-sm">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Generating Deep Dives ({deepDiveProgress.current}/{deepDiveProgress.total})</span>
+                      <span>Building Insight Deep Dives ({deepDiveProgress.current}/{deepDiveProgress.total})</span>
                     </div>
                   )}
                   <button onClick={exportToPPTX} className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 rounded-full text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm">
