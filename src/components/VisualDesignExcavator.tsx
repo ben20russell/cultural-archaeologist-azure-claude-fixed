@@ -1709,14 +1709,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                 Generate Visual Analysis
               </>
             )}
-            {isLoading && (
-              <div className="absolute left-3 right-3 bottom-2 h-1 rounded-full bg-white/20">
-                <div
-                  className="h-full rounded-full bg-fuchsia-400 transition-all duration-200"
-                  style={{ width: `${fakeProgress}%` }}
-                />
-              </div>
-            )}
+            {/* Progress bar is now rendered inside ProgressiveLoader for alignment with % */}
           </button>
         </div>
 
@@ -1732,29 +1725,15 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
       <AnimatePresence mode="wait">
         {report && (
-          <>
-            {!allVisualsLoaded && expectedCount > 0 ? (
-              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
-                <ProgressiveLoader
-                  messages={['Loading all visual design elements...']}
-                  showProgress
-                  progress={Math.min(100, Math.round((expectedCount ? (100 * (expectedCount - (expectedCount - (allVisualsLoaded ? expectedCount : 0)))) / expectedCount : 0)))}
-                  averageDurationMs={4000}
-                />
-                <span className="mt-4 text-zinc-500 text-sm">Preparing results...</span>
-              </div>
-            ) : (
-              <motion.div
-                key="brand-deep-dive-report"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="w-full max-w-4xl mx-auto mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
-              >
-                {/* ...existing code for the report panel... */}
-              </motion.div>
-            )}
-          </>
+          <motion.div
+            key="brand-deep-dive-report"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="w-full max-w-4xl mx-auto mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
+          >
+            {/* ...existing code for the report panel... */}
+          </motion.div>
         )}
       </AnimatePresence>
 
