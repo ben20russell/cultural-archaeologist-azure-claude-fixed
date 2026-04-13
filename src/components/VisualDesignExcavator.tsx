@@ -1558,7 +1558,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         </div>
         <h1 className="text-4xl md:text-6xl font-medium tracking-tight text-zinc-900 mb-6 select-none">
           Visual Design <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Excavator</span>
-          <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">Beta</span>
+          <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full text-xs font-semibold tracking-wide border border-transparent text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Beta</span>
         </h1>
         <p className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed select-none">
           Compare visual identity systems across 1-6 brands.
