@@ -1950,21 +1950,21 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           </p>
                           <div className="space-y-1">
                             {profile.logo.mainLogo && (
-                              <p className="text-sm text-zinc-700"><span className="font-medium text-zinc-900">Primary:</span> {profile.logo.mainLogo.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')}</p>
+                              <p className="text-sm text-zinc-700"><span className="font-medium text-zinc-900">Primary:</span> {profile.logo.mainLogo}</p>
                             )}
                             {profile.logo.wordmarkLogotype && (
-                              <p className="text-sm text-zinc-700"><span className="font-medium text-zinc-900">Wordmark:</span> {profile.logo.wordmarkLogotype.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')}</p>
+                              <p className="text-sm text-zinc-700"><span className="font-medium text-zinc-900">Wordmark:</span> {profile.logo.wordmarkLogotype}</p>
                             )}
                             {profile.logo.logoVariations.length > 0 && (
                               <div>
                                 <p className="text-xs font-medium text-zinc-500 mt-2 mb-1">Variations</p>
-                                {renderListOrFallback(profile.logo.logoVariations.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), 'No variations documented.')}
+                                {renderListOrFallback(profile.logo.logoVariations, 'No variations documented.')}
                               </div>
                             )}
                             {profile.logo.symbolsIcons.length > 0 && (
                               <div>
                                 <p className="text-xs font-medium text-zinc-500 mt-2 mb-1">Symbols & Icons</p>
-                                {renderListOrFallback(profile.logo.symbolsIcons.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), 'No symbol data.')}
+                                {renderListOrFallback(profile.logo.symbolsIcons, 'No symbol data.')}
                               </div>
                             )}
                           </div>
@@ -1981,7 +1981,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               onClick={(e) => openComparePopup(e, 'primaryColors')}
                             >
                               <p className="text-xs font-semibold text-zinc-600 mb-2">Primary</p>
-                              <ul className="space-y-2">{profile.colorPalette.primaryColors.map(c => renderColorSwatch({...c, name: c.name.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')}))}</ul>
+                              <ul className="space-y-2">{profile.colorPalette.primaryColors.map(c => renderColorSwatch(c))}</ul>
                             </div>
                           )}
                           {profile.colorPalette.secondaryAccentColors.length > 0 && (
@@ -1990,7 +1990,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               onClick={(e) => openComparePopup(e, 'accentColors')}
                             >
                               <p className="text-xs font-semibold text-zinc-600 mb-2">Accent</p>
-                              <ul className="space-y-2">{profile.colorPalette.secondaryAccentColors.map(c => renderColorSwatch({...c, name: c.name.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')}))}</ul>
+                              <ul className="space-y-2">{profile.colorPalette.secondaryAccentColors.map(c => renderColorSwatch(c))}</ul>
                             </div>
                           )}
                           {profile.colorPalette.neutrals.length > 0 && (
@@ -1999,7 +1999,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               onClick={(e) => openComparePopup(e, 'neutrals')}
                             >
                               <p className="text-xs font-semibold text-zinc-600 mb-2">Neutrals</p>
-                              <ul className="space-y-2">{profile.colorPalette.neutrals.map(c => renderColorSwatch({...c, name: c.name.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')}))}</ul>
+                              <ul className="space-y-2">{profile.colorPalette.neutrals.map(c => renderColorSwatch(c))}</ul>
                             </div>
                           )}
                         </div>
@@ -2014,7 +2014,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           {profile.typography.fontFamilies.length > 0 && (
                             <p className="text-sm text-zinc-700">
                               <span className="font-medium text-zinc-900">Families:</span>{' '}
-                              {profile.typography.fontFamilies.map(f => f.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')).join(', ')}
+                              {profile.typography.fontFamilies.join(', ')}
                             </p>
                           )}
                           <div className="grid grid-cols-3 gap-2 mt-2">
@@ -2032,7 +2032,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           {profile.typography.usageRules.length > 0 && (
                             <div>
                               <p className="text-xs font-medium text-zinc-500 mt-2 mb-1">Usage Rules</p>
-                              {renderListOrFallback(profile.typography.usageRules.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), '')}
+                              {renderListOrFallback(profile.typography.usageRules, '')}
                             </div>
                           )}
                         </div>
@@ -2046,25 +2046,25 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                               onClick={(e) => openComparePopup(e, 'imageryStyle')}
                             >
                               <p className="text-xs font-semibold text-zinc-600 mb-1">Imagery Style</p>
-                              {renderListOrFallback(profile.supportingVisualElements.imageryStyle.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), '')}
+                              {renderListOrFallback(profile.supportingVisualElements.imageryStyle, '')}
                             </div>
                           )}
                           {profile.supportingVisualElements.icons.length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-zinc-600 mb-1">Icons</p>
-                              {renderListOrFallback(profile.supportingVisualElements.icons.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), '')}
+                              {renderListOrFallback(profile.supportingVisualElements.icons, '')}
                             </div>
                           )}
                           {profile.supportingVisualElements.patternsTextures.length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-zinc-600 mb-1">Patterns & Textures</p>
-                              {renderListOrFallback(profile.supportingVisualElements.patternsTextures.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), '')}
+                              {renderListOrFallback(profile.supportingVisualElements.patternsTextures, '')}
                             </div>
                           )}
                           {profile.supportingVisualElements.shapes.length > 0 && (
                             <div>
                               <p className="text-xs font-semibold text-zinc-600 mb-1">Shapes</p>
-                              {renderListOrFallback(profile.supportingVisualElements.shapes.map(v => v.replace(/\b(INFERRED|known|speculative)\b:? ?/gi, '')), '')}
+                              {renderListOrFallback(profile.supportingVisualElements.shapes, '')}
                             </div>
                           )}
                         </div>
