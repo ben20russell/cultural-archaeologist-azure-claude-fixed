@@ -1565,7 +1565,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">Beta</span>
         </h1>
         <p className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed select-none">
-          Compare visual identity systems across 1-6 brands.
+          Compare visual identity systems of up to 1-6 brands.
         </p>
       </motion.div>
 
