@@ -351,6 +351,7 @@ const EvidenceBundleSchema = z.object({
 const DevilsAdvocateSchema = z.object({
   counterArgument: z.string(),
   keyWeaknesses: z.array(z.string()),
+  consolidatedSummary: z.string().describe('A concise summary that preserves every material claim from the full counter-argument and weaknesses.'),
 });
 
 const QUARTERLY_MACRO_SUMMARY: Record<string, string> = {
@@ -630,10 +631,23 @@ async function runDevilsAdvocatePass(topic: string, draft: unknown, mode: Sessio
       },
       {
         role: 'user',
-        content: `Topic:\n${topic}\n\nDraft analysis:\n${JSON.stringify(draft).slice(0, 12000)}\n\nReturn a strong counter-argument and key weaknesses.`,
+        content: `Topic:\n${topic}\n\nDraft analysis:\n${JSON.stringify(draft).slice(0, 12000)}\n\nReturn:
+- counterArgument: a full steelman counter-argument.
+- keyWeaknesses: the most important weaknesses.
+- consolidatedSummary: a shorter, consolidated summary of counterArgument + keyWeaknesses that preserves all material claims (no omissions).`,
       },
     ],
   });
+}
+
+export function formatDevilsAdvocateLens(devil: z.infer<typeof DevilsAdvocateSchema>): string {
+  const consolidated = devil.consolidatedSummary?.replace(/\s+/g, ' ').trim();
+  if (consolidated) return consolidated;
+
+  const normalizedCounter = devil.counterArgument?.replace(/\s+/g, ' ').trim();
+  if (normalizedCounter) return normalizedCounter;
+
+  return 'Alternative interpretation not available.';
 }
 
 function normalizeHttpsUrl(rawUrl?: string | null): string | null {
@@ -1654,7 +1668,7 @@ Rules:
   interpretedMatrix.contradictions = [
     ...interpretedMatrix.contradictions,
     {
-      text: `[SPECULATIVE] Devil's advocate lens: ${devil.counterArgument}`,
+      text: `[SPECULATIVE] Devil's advocate lens: ${formatDevilsAdvocateLens(devil)}`,
       isHighlyUnique: false,
       sourceType: 'Methodological challenge',
       confidenceLevel: 'low' as const,
