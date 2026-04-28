@@ -2096,26 +2096,6 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                           </div>
                         )}
 
-                        {/* Sources */}
-                        {(profile.sampleVisuals || []).length > 0 && (
-                          <div>
-                            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Sources</p>
-                            <div className="flex flex-wrap gap-2">
-                              {(profile.sampleVisuals || []).map((source, idx) => (
-                                <a
-                                  key={idx}
-                                  href={source.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-full transition-colors"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  <span className="truncate max-w-[160px]">{source.title}</span>
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </section>
                     );
                   })}
