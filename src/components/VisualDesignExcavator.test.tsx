@@ -89,11 +89,11 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
-    await screen.findByText(/Ask the Archaeologist/i);
+    await screen.findByText(/Ask About This Analysis/i);
 
     expect(screen.queryByRole('button', { name: /rescan/i })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Ask a question or describe what looks inaccurate'), {
+    fireEvent.change(screen.getByPlaceholderText('e.g. Which brand has the most distinct color system?'), {
       target: { value: 'The logo details look inaccurate. Please rescan and fix them.' },
     });
 
@@ -130,7 +130,7 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
-    const [logo] = await screen.findAllByAltText('Aesop Logo');
+    const [logo] = await screen.findAllByAltText(/Aesop logo/i);
     expect(logo).toHaveAttribute('src', expect.stringContaining('www.aesop.com'));
     expect(logo.getAttribute('src')).not.toContain('logo.clearbit.com');
 
@@ -155,9 +155,8 @@ describe('BrandDeepDivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /generate visual analysis/i }));
 
-    await screen.findByText(/Ask the Archaeologist/i);
-
-    fireEvent.click(screen.getAllByTestId('compare-trigger-typography')[0]);
+    await screen.findByText(/Ask About This Analysis/i);
+    fireEvent.click(screen.getByText('Typography'));
 
     const compareButton = await screen.findByRole('button', { name: /compare across brands/i });
     fireEvent.click(compareButton);
