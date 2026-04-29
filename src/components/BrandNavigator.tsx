@@ -81,6 +81,48 @@ const SOURCES_TYPES = [
   "Niche/Fringe"
 ];
 
+const FALLBACK_BRAND_SUGGESTIONS = [
+  'Nike',
+  'Nikon',
+  'Nintendo',
+  'Netflix',
+  'Nestle',
+  'Nespresso',
+  'North Face',
+  'New Balance',
+  'Apple',
+  'Amazon',
+  'Adobe',
+  'Airbnb',
+  'Google',
+  'Meta',
+  'Microsoft',
+  'OpenAI',
+  'Spotify',
+  'Starbucks',
+  'Samsung',
+  'Sony',
+  'Target',
+  'Tesla',
+  'TikTok',
+  'YouTube',
+];
+
+const getLocalBrandSuggestions = (query: string, savedMatrices: SavedMatrix[]): string[] => {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery.length < 2) return [];
+
+  const fromSavedSearches = savedMatrices
+    .flatMap((matrix) => parseBrandsInput(matrix.brand || ''))
+    .filter(Boolean);
+
+  const merged = Array.from(new Set([...fromSavedSearches, ...FALLBACK_BRAND_SUGGESTIONS]));
+
+  return merged
+    .filter((candidate) => candidate.toLowerCase().includes(normalizedQuery))
+    .slice(0, 8);
+};
+
 const parseBrandsInput = (value: string): string[] => {
   const parsed = value
     .split(',')
@@ -121,7 +163,6 @@ export default function BrandNavigator() {
   const [isDetecting, setIsDetecting] = useState(false);
   const [brandSuggestions, setBrandSuggestions] = useState<string[]>([]);
   const [isSuggestingBrands, setIsSuggestingBrands] = useState(false);
-  const [hasQuotaError, setHasQuotaError] = useState(false);
   
   const [selectedGenerations, setSelectedGenerations] = useState<string[]>([]);
   const [isGenerationDropdownOpen, setIsGenerationDropdownOpen] = useState(false);
@@ -410,7 +451,6 @@ export default function BrandNavigator() {
 
   // Fetch brand suggestions as user types
   useEffect(() => {
-    if (hasQuotaError) return;
     const activeQuery = brandInput.trim();
 
     if (!activeQuery) {
@@ -443,16 +483,25 @@ export default function BrandNavigator() {
           // Log error for debugging, but do not crash
           console.error('Brand suggestion error:', err);
           setToast('Failed to get brand suggestions. Please try again.');
-          const errorMessage = getErrorMessage(err);
-          if (errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-            setHasQuotaError(true);
-          }
         }
-        setBrandSuggestions(Array.isArray(suggestions) ? suggestions : []);
+
+        const apiSuggestions = Array.isArray(suggestions) ? suggestions : [];
+        if (apiSuggestions.length > 0) {
+          setBrandSuggestions(apiSuggestions);
+          return;
+        }
+
+        const localSuggestions = getLocalBrandSuggestions(activeQuery, visibleSavedMatrices);
+        console.log('Using local brand suggestion fallback', {
+          activeQuery,
+          localSuggestionsCount: localSuggestions.length,
+        });
+        setBrandSuggestions(localSuggestions);
       } catch (outerErr) {
         // Defensive: catch any unexpected errors
         console.error('Unexpected error in brand suggestion effect:', outerErr);
-        setBrandSuggestions([]);
+        const localSuggestions = getLocalBrandSuggestions(activeQuery, visibleSavedMatrices);
+        setBrandSuggestions(localSuggestions);
         setToast('An unexpected error occurred while suggesting brands.');
       } finally {
         setIsSuggestingBrands(false);
@@ -460,7 +509,7 @@ export default function BrandNavigator() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [brandInput, visibleSavedMatrices, hasQuotaError]);
+  }, [brandInput, visibleSavedMatrices]);
 
   const handleReset = () => {
     setSelectedBrands([]);
@@ -804,7 +853,7 @@ export default function BrandNavigator() {
         y += 5;
         
         if (matrixMeta.brand) {
-          y = addWrappedText(`Context: ${matrixMeta.brand}`, margin, y, 12, false, [82, 82, 91]);
+          y = addWrappedText(`Brands: ${matrixMeta.brand}`, margin, y, 12, false, [82, 82, 91]);
         }
         if (matrixMeta.topicFocus) {
           y = addWrappedText(`Topic Focus: ${matrixMeta.topicFocus}`, margin, y, 12, false, [82, 82, 91]);
@@ -1134,7 +1183,7 @@ export default function BrandNavigator() {
                   <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Brand Navigator</p>
                   <p className="text-sm text-zinc-700">
                     Audience: {matrixMeta.audience || 'N/A'}
-                    {matrixMeta.brand ? ` • Context: ${matrixMeta.brand}` : ''}
+                    {matrixMeta.brand ? ` • Brands: ${matrixMeta.brand}` : ''}
                     {matrixMeta.topicFocus ? ` • Topic: ${matrixMeta.topicFocus}` : ''}
                   </p>
                 </div>
@@ -1657,7 +1706,7 @@ export default function BrandNavigator() {
                   </h2>
                   {matrixMeta.brand && (
                     <p className="text-zinc-500 text-lg flex items-center gap-2">
-                      <Tag className="w-4 h-4" /> Context: {matrixMeta.brand}
+                      <Tag className="w-4 h-4" /> Brands: {matrixMeta.brand}
                     </p>
                   )}
                   {matrixMeta.topicFocus && (
@@ -1684,7 +1733,7 @@ export default function BrandNavigator() {
               {/* Print Title (Only visible when printing) */}
               <div className="hidden print:block mb-10">
                 <h1 className="text-4xl font-bold text-zinc-900 mb-2">Audience: {matrixMeta.audience}</h1>
-                {matrixMeta.brand && <p className="text-xl text-zinc-600 mb-2">Context: {matrixMeta.brand}</p>}
+                {matrixMeta.brand && <p className="text-xl text-zinc-600 mb-2">Brands: {matrixMeta.brand}</p>}
                 {matrixMeta.topicFocus && <p className="text-xl text-zinc-600 mb-2">Topic: {matrixMeta.topicFocus}</p>}
                 {matrixMeta.sourcesType && matrixMeta.sourcesType.length > 0 && <p className="text-xl text-zinc-600 mb-2">Sources: {matrixMeta.sourcesType.join(', ')}</p>}
                 <p className="text-zinc-500">Generated on {new Date().toLocaleDateString()}</p>

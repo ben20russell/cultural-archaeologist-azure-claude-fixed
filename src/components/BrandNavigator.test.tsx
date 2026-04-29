@@ -115,6 +115,18 @@ describe('BrandNavigator', () => {
     expect(await screen.findByText('Type at least 2 characters for suggestions.')).toBeInTheDocument();
   });
 
+  it('falls back to local suggestions when API suggestions are empty', async () => {
+    suggestBrands.mockResolvedValue([]);
+    render(<BrandNavigator />);
+
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Ni' } });
+
+    expect(await screen.findByText('Nike')).toBeInTheDocument();
+  });
+
   it('requires only brands for generate and treats audience as optional', async () => {
     render(<BrandNavigator />);
 
