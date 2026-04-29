@@ -3,11 +3,13 @@ import App from './App';
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock azure-openai service for async flows
-vi.mock('./services/azure-openai', () => ({
-  ...vi.importActual('./services/azure-openai'),
-  suggestBrands: vi.fn().mockResolvedValue(['Nike', 'Nestle']),
-  autoPopulateFields: vi.fn().mockResolvedValue({ audience: 'Gen Z' }),
-}));
+vi.mock('./services/azure-openai', async () => {
+  const actual = await vi.importActual<typeof import('./services/azure-openai')>('./services/azure-openai');
+  return {
+    ...actual,
+    suggestBrands: vi.fn().mockResolvedValue(['Nike', 'Nestle']),
+  };
+});
 
 describe('App Component', () => {
   async function waitForSplashToDisappear() {
@@ -45,13 +47,13 @@ describe('App Component', () => {
     expect(screen.getByText('Nike')).toBeInTheDocument();
   });
 
-  it('auto-populates audience from topic', async () => {
+  it('keeps topic input editable', async () => {
     render(<App />);
     await waitForSplashToDisappear();
     fireEvent.click(screen.getByText(/Cultural Archaeologist/i));
     const topicInput = screen.getByPlaceholderText(/Topic Focus \(Optional\)/i);
     fireEvent.change(topicInput, { target: { value: 'Sneakers' } });
-    await waitFor(() => expect(screen.getByDisplayValue('Gen Z')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue('Sneakers')).toBeInTheDocument());
   });
 
   it('shows validation error if audience is empty on generate', async () => {
@@ -65,21 +67,23 @@ describe('App Component', () => {
 
   it('shows loading state when generating', async () => {
     // Mock generateCulturalMatrix to delay
-    const { generateCulturalMatrix } = await import('./services/azure-openai');
-    vi.spyOn(generateCulturalMatrix, 'default').mockImplementation(() => new Promise(() => {}));
+    const azure = await import('./services/azure-openai');
+    vi.spyOn(azure, 'generateCulturalMatrix').mockImplementation(() => new Promise(() => {}));
     render(<App />);
     await waitForSplashToDisappear();
+    fireEvent.click(screen.getByText(/Cultural Archaeologist/i));
     fireEvent.change(screen.getByPlaceholderText(/Primary Audience/i), { target: { value: 'Gen Z' } });
     const generateBtn = screen.getByRole('button', { name: /generate/i });
     fireEvent.click(generateBtn);
-    expect(screen.getByText(/Finding suggestions|Loading|Generating|Progress/i)).toBeInTheDocument();
+    expect(screen.getByText(/Scanning latest audience signals|Synthesizing cultural tensions|Ranking highest-potency insights|Shaping strategist-ready output/i)).toBeInTheDocument();
   });
 
   it('shows error toast if brand suggestion fails', async () => {
     const { suggestBrands } = await import('./services/azure-openai');
-    suggestBrands.mockRejectedValueOnce(new Error('API error'));
+    vi.mocked(suggestBrands).mockRejectedValueOnce(new Error('API error'));
     render(<App />);
     await waitForSplashToDisappear();
+    fireEvent.click(screen.getByText(/Cultural Archaeologist/i));
     const brandInput = screen.getByPlaceholderText(/Brand or Category/i);
     fireEvent.change(brandInput, { target: { value: 'Ni' } });
     await waitFor(() => expect(screen.getByText(/Failed to get brand suggestions/i)).toBeInTheDocument());
@@ -90,7 +94,7 @@ describe('App Component', () => {
     await waitForSplashToDisappear();
     fireEvent.click(screen.getByText(/Cultural Archaeologist/i));
 
-    const actionBar = screen.getByRole('button', { name: /visual design excavator/i }).parentElement;
+    const actionBar = screen.getByRole('button', { name: /design excavator/i }).parentElement;
 
     expect(actionBar).toHaveClass('flex-col');
     expect(actionBar).toHaveClass('gap-3');

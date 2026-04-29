@@ -26,6 +26,9 @@ h6 {
 .copyright-copy {
   -webkit-user-select: none;
   user-select: none;
+}
+
+.subheader-copy {
   pointer-events: none;
 }
 

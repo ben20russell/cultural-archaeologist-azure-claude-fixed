@@ -10,7 +10,7 @@ type UseAllVisualsLoadedResult = {
 };
 
 const useAllVisualsLoaded = (
-  report: BrandDeepDiveReport | null,
+  report: VisualDesignReport | null,
   bestVisualsByBrand: Record<string, BrandVisualSelection>
 ): UseAllVisualsLoadedResult => {
   const [allVisualsLoaded, setAllVisualsLoaded] = useState(false);
@@ -64,12 +64,19 @@ const useAllVisualsLoaded = (
   return { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount };
 };
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, RefreshCw, Info, Sparkles, Building2, Users, Trash2, Plus, Crosshair, Loader2, Presentation, FileText, ImageIcon, Type, Palette, Clock, ExternalLink, Share2 } from 'lucide-react';
-import { BrandColorSpec, BrandDeepDiveReport, generateBrandDeepDive, submitBrandDeepDivePrompt, suggestBrandWebsite } from '../services/azure-openai';
+import { Search, Info, Users, Trash2, Plus, Crosshair, Loader2, Presentation, FileText, ImageIcon, Type, Palette, Clock, ExternalLink, Share2, Globe, Tag, Sparkles, ArrowLeft, RefreshCw } from 'lucide-react';
+import { CompassRoseIcon } from './icons/CompassRoseIcon';
+import {
+  BrandColorSpec,
+  BrandDeepDiveReport as VisualDesignReport,
+  generateBrandDeepDive as generateVisualDesign,
+  submitBrandDeepDivePrompt as submitVisualDesignPrompt,
+  suggestBrandWebsite,
+} from '../services/azure-openai';
 import { supabase } from '../services/supabase-client';
 import { Accordion } from './Accordion';
 
-interface BrandDeepDivePageProps {
+interface VisualDesignPageProps {
   onBack: () => void;
 }
 
@@ -94,7 +101,7 @@ interface SavedDeepDiveSearch {
   brands: Array<{ name: string; website?: string }>;
   analysisObjective: string;
   targetAudience: string;
-  report: BrandDeepDiveReport;
+  report: VisualDesignReport;
   customName?: string;
 }
 
@@ -377,7 +384,7 @@ function dedupeVisualCards(cards: BrandVisualCard[]): BrandVisualCard[] {
   });
 }
 
-export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
+export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
   const [brands, setBrands] = useState<Array<{ id: string; name: string; website: string }>>([
     { id: 'brand-1', name: '', website: '' },
     { id: 'brand-2', name: '', website: '' },
@@ -392,7 +399,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   const [fakeProgress, setFakeProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const [report, setReport] = useState<BrandDeepDiveReport | null>(null);
+  const [report, setReport] = useState<VisualDesignReport | null>(null);
   const [reportQuestion, setReportQuestion] = useState('');
   const [reportAnswer, setReportAnswer] = useState('');
   const [isSubmittingPrompt, setIsSubmittingPrompt] = useState(false);
@@ -705,7 +712,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     setBestVisualsByBrand({});
 
     try {
-      const result = await generateBrandDeepDive({
+      const result = await generateVisualDesign({
         brands: normalizedBrands,
         analysisObjective,
         targetAudience,
@@ -713,11 +720,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
 
       // Debug log
       if (typeof window !== 'undefined' && window.console) {
-        console.log('[BrandDeepDive] API result:', result);
+        console.log('[VisualDesign] API result:', result);
       }
 
       if (!result) {
-        setError('No results were returned from the brand deep dive API. Please try again.');
+        setError('No results were returned from the visual design API. Please try again.');
         setIsLoading(false);
         return;
       }
@@ -750,7 +757,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         }
       } catch (saveErr) {
         // Do not block UI if Supabase fails
-        console.warn('Failed to save brand deep dive to Supabase:', saveErr);
+        console.warn('Failed to save visual design report to Supabase:', saveErr);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -783,7 +790,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     setReportAnswer('');
 
     try {
-      const result = await submitBrandDeepDivePrompt({
+      const result = await submitVisualDesignPrompt({
         brands: normalizedBrands,
         analysisObjective,
         targetAudience,
@@ -820,7 +827,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           }
         } catch (saveErr) {
           // Do not block UI if Supabase fails
-          console.warn('Failed to save brand deep dive to Supabase:', saveErr);
+          console.warn('Failed to save visual design report to Supabase:', saveErr);
         }
       }
 
@@ -1278,7 +1285,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     return pending;
   };
 
-  const collectProfileExportImages = async (profile: BrandDeepDiveReport['brandProfiles'][number]) => {
+  const collectProfileExportImages = async (profile: VisualDesignReport['brandProfiles'][number]) => {
     const visuals = bestVisualsByBrand[profile.brandName];
     const visibleVisualCards = (visuals?.images || []).filter((image, idx) => {
       const failureState = visualFailuresByCard[`${profile.brandName}-visual-${idx}`];
@@ -1323,7 +1330,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
       pres.layout = 'LAYOUT_16x9';
       const titleSlide = pres.addSlide();
       titleSlide.background = { color: 'FAFAFA' };
-      titleSlide.addText('Visual Design Excavator Report', { x: 0.5, y: 0.5, w: 9, h: 0.6, fontSize: 48, bold: true, color: '18181B' });
+      titleSlide.addText('Design Excavator Report', { x: 0.5, y: 0.5, w: 9, h: 0.6, fontSize: 48, bold: true, color: '18181B' });
       if (analysisObjective) {
         titleSlide.addText(`Objective: ${analysisObjective}`, { x: 0.5, y: 1.3, w: 9, h: 0.6, fontSize: 16, color: '4F46E5' });
       }
@@ -1370,7 +1377,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           colorY += 0.3;
         });
       }
-      await pres.writeFile({ fileName: `Visual_Design_Excavator_${new Date().toISOString().split('T')[0]}.pptx` });
+      await pres.writeFile({ fileName: `Design_Excavator_${new Date().toISOString().split('T')[0]}.pptx` });
       setToast('PowerPoint exported successfully!');
     } catch (err) {
       const pptxError = err instanceof Error ? err.message : 'Unknown error';
@@ -1409,7 +1416,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         return y + 2;
       };
       let y = margin;
-      y = addWrappedText('Visual Design Excavator Report', margin, y, 22, true, [24, 24, 27]);
+      y = addWrappedText('Design Excavator Report', margin, y, 22, true, [24, 24, 27]);
       y += 5;
       if (analysisObjective) {
         addWrappedText(`Objective: ${analysisObjective}`, margin, y, 11, true, [79, 70, 229]);
@@ -1499,7 +1506,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           y = addWrappedText(`• ${item}`, margin + 3, y, 10, false, [82, 82, 91]);
         });
       }
-      doc.save(`Visual_Design_Excavator_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`Design_Excavator_${new Date().toISOString().split('T')[0]}.pdf`);
       setToast('PDF exported successfully!');
     } catch (err) {
       const pdfError = err instanceof Error ? err.message : 'Unknown error';
@@ -1513,22 +1520,37 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
   return (
     <>
       <div className="w-full px-2 sm:px-0">
-      {/* Top Navigation / Actions */}
-      <div className="absolute top-6 right-6 z-50 no-print flex items-center gap-2">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
-        >
-          <Search className="w-4 h-4" /> Cultural Archaeologist
-        </button>
-        <button
-          type="button"
-          onClick={clearExcavatorSearch}
-          className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
-        >
-          <RefreshCw className="w-4 h-4" /> New Search
-        </button>
-      </div>
+        <div className="absolute top-6 left-6 z-50 no-print">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400/40 focus:ring-offset-2 rounded-md"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </button>
+        </div>
+        {/* Top Navigation / Actions */}
+        <div className="absolute top-6 right-6 z-50 no-print flex items-center gap-2">
+          <button
+            onClick={() => window.location.assign('/cultural-archaeologist')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
+          >
+            <Search className="w-4 h-4" /> Cultural Archaeologist
+          </button>
+          <button
+            onClick={() => window.location.assign('/brand-navigator')}
+            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
+          >
+            <CompassRoseIcon className="w-4 h-4" /> Brand Navigator
+          </button>
+          <button
+            type="button"
+            onClick={clearExcavatorSearch}
+            className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
+          >
+            <RefreshCw className="w-4 h-4" /> New Search
+          </button>
+        </div>
 
       <AnimatePresence>
         {undoToast && (
@@ -1557,11 +1579,11 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
         transition={{ duration: 0.5 }}
         className="mb-12 text-center flex flex-col items-center"
       >
-        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-6">
-          <Sparkles className="w-5 h-5" />
+        <div className="inline-flex items-center justify-center p-2 bg-white rounded-2xl shadow-sm border border-indigo-200/80 mb-8">
+          <Palette className="w-5 h-5 text-indigo-600" />
         </div>
         <h1 className="text-4xl md:text-6xl font-medium tracking-tight text-zinc-900 mb-6 select-none">
-          Visual Design <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Excavator</span>
+          Design <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-fuchsia-500">Excavator</span>
           <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">Beta</span>
         </h1>
         <p className="text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed select-none">
@@ -1578,7 +1600,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
           className="mb-6 bg-white border border-zinc-200 rounded-2xl px-4 py-3 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 no-print"
         >
           <div className="text-left">
-            <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Visual Design Excavator</p>
+            <p className="text-xs uppercase tracking-wider text-zinc-500 font-semibold">Design Excavator</p>
             <p className="text-sm text-zinc-700">
               {brands.filter((b) => (b.name || '').trim()).map((b) => (b.name || '').trim()).slice(0, 3).join(' vs ') || 'Brand comparison ready'}
               {(analysisObjective || '').trim() ? ` • Objective: ${(analysisObjective || '').trim()}` : ''}
@@ -1612,7 +1634,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             {brands.map((brand, idx) => (
               <div key={brand.id} className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_1fr_auto] gap-3 items-center">
                 <div className="relative md:col-auto">
-                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                   <input
                     type="text"
                     value={brand.name}
@@ -1623,7 +1645,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                   />
                 </div>
                 <div className="relative col-span-2 md:col-span-1">
-                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                   <input
                     type="text"
                     value={brand.website}
@@ -1668,9 +1690,9 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             <textarea
               value={analysisObjective}
               onChange={(e) => setAnalysisObjective(e.target.value)}
-              placeholder="Visual Identity Objective (Required) e.g. Compare distinctiveness and consistency across premium skincare brands"
-              rows={3}
-              className="w-full pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
+              placeholder="Visual Identity Objective (Optional)"
+              rows={2}
+              className="w-full pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
               disabled={isLoading}
             />
           </div>
@@ -1710,7 +1732,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                Generate Visual Analysis
+                Generate Analysis
               </>
             )}
             {/* Progress bar is now rendered inside ProgressiveLoader for alignment with % */}
@@ -1742,7 +1764,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
       <AnimatePresence mode="wait">
         {report && (
           <motion.div
-            key="brand-deep-dive-report"
+            key="visual-design-report"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -2152,7 +2174,7 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
                 {report.crossBrandReadout?.length > 0 && (
                   <section className="bg-indigo-50 rounded-3xl border border-indigo-100 p-6">
                     <h4 className="text-sm font-bold text-indigo-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" /> Opportunity Spaces
+                      <Palette className="w-4 h-4" /> Opportunity Spaces
                     </h4>
                     <ul className="space-y-3">
                       {report.crossBrandReadout.map((item, idx) => (
@@ -2287,3 +2309,6 @@ export function BrandDeepDivePage({ onBack }: BrandDeepDivePageProps) {
     </>
   );
 }
+
+// Backward-compatible alias for existing imports.
+export const BrandDeepDivePage = VisualDesignPage;

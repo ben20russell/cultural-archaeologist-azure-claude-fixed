@@ -85,6 +85,42 @@ export interface CulturalMatrix {
   sources: Source[];
 }
 
+export interface BrandResearchAudience {
+  audience: string;
+  priority: string;
+  inferredRoleToConsumers: string;
+  functionalBenefits: string[];
+  emotionalBenefits: string[];
+}
+
+export interface BrandResearchPositioning {
+  taglines: string[];
+  keyMessagesAndClaims: string[];
+  valueProposition: string;
+  voiceAndTone: string;
+}
+
+export interface BrandResearchResult {
+  brandName: string;
+  brandMission: string;
+  brandPositioning: BrandResearchPositioning;
+  keyOfferingsProductsServices: string[];
+  strategicMoatsStrengths: string[];
+  potentialThreatsWeaknesses: string[];
+  targetAudiences: BrandResearchAudience[];
+  recentCampaigns: string[];
+  keyMarketingChannels: string[];
+  socialMediaChannels: { channel: string; url: string }[];
+  sources: Source[];
+}
+
+export interface BrandResearchMatrix {
+  analysisObjective: string;
+  ecosystemMethod: string;
+  results: BrandResearchResult[];
+  sources: Source[];
+}
+
 export interface DeepDiveReport {
   originationDate: string;
   relevance: string;
@@ -1540,6 +1576,45 @@ const CulturalMatrixSchema = z.object({
   sources: z.array(SourceSchema)
 });
 
+const BrandResearchAudienceSchema = z.object({
+  audience: z.string(),
+  priority: z.string(),
+  inferredRoleToConsumers: z.string(),
+  functionalBenefits: z.array(z.string()),
+  emotionalBenefits: z.array(z.string()),
+});
+
+const BrandResearchMatrixSchema = z.object({
+  analysisObjective: z.string(),
+  ecosystemMethod: z.string(),
+  results: z.array(
+    z.object({
+      brandName: z.string(),
+      brandMission: z.string(),
+      brandPositioning: z.object({
+        taglines: z.array(z.string()),
+        keyMessagesAndClaims: z.array(z.string()),
+        valueProposition: z.string(),
+        voiceAndTone: z.string(),
+      }),
+      keyOfferingsProductsServices: z.array(z.string()),
+      strategicMoatsStrengths: z.array(z.string()),
+      potentialThreatsWeaknesses: z.array(z.string()),
+      targetAudiences: z.array(BrandResearchAudienceSchema),
+      recentCampaigns: z.array(z.string()),
+      keyMarketingChannels: z.array(z.string()),
+      socialMediaChannels: z.array(
+        z.object({
+          channel: z.string(),
+          url: z.string(),
+        })
+      ),
+      sources: z.array(SourceSchema),
+    })
+  ),
+  sources: z.array(SourceSchema),
+});
+
 const CulturalRawSignalsSchema = z.object({
   demographics: z.object({
     age: z.string(),
@@ -1680,6 +1755,91 @@ Rules:
   const sanitized = sanitizeCulturalMatrix(interpretedMatrix, hasUploadedDocuments);
   updateSessionBrief('cultural', sanitized);
   return sanitized;
+}
+
+export async function generateBrandResearchMatrix(
+  audience: string,
+  brands: string[],
+  generations?: string[],
+  topicFocus?: string,
+  files?: UploadedFile[],
+  sourcesType?: string[]
+): Promise<BrandResearchMatrix> {
+  const sanitizedBrands = Array.from(new Set((brands || []).map((value) => value.trim()).filter(Boolean)));
+  const brandContext = sanitizedBrands.join(', ');
+  const topicStr = topicFocus ? `\n\nCRITICAL: Focus all findings on the topic "${topicFocus}".` : '';
+  const audienceStr = audience?.trim() ? `\n\nPrimary audience context: "${audience.trim()}".` : '';
+  const generationStr = generations && generations.length > 0
+    ? `\n\nCRITICAL: Restrict findings to these generations when evidence is available: ${generations.join(', ')}.`
+    : '';
+  const filesStr = files && files.length > 0
+    ? `\n\nUse attached documents as supporting evidence alongside broader research.`
+    : '';
+  const sourcesTypeStr = sourcesType && sourcesType.length > 0
+    ? `\n\nCRITICAL: Prioritize sources from: ${sourcesType.join(', ')}.`
+    : '';
+
+  const systemInstruction = composeSystemPrompt(
+    'You are an expert brand strategist. Use rigorous, recent, evidence-based research and produce structured competitive brand intelligence.',
+    'brand'
+  );
+
+  const evidenceDigest = await gatherEvidenceForTopic(
+    `Brands: ${brandContext}; Audience: ${audience || 'n/a'}; Topic: ${topicFocus || 'n/a'}; Generations: ${(generations || []).join(', ') || 'n/a'}`,
+    'brand'
+  );
+
+  const prompt = `Generate a brand intelligence report for the following brands: ${brandContext}.${audienceStr}${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
+
+Requirements:
+- Use the same research rigor: recent evidence (2024-2026), explicit uncertainty handling, and source grounding.
+- Return one complete result object per brand in "results".
+- Each brand result must include:
+  1) brandMission
+  2) brandPositioning:
+     - taglines
+     - keyMessagesAndClaims
+     - valueProposition
+     - voiceAndTone
+  3) keyOfferingsProductsServices
+  4) strategicMoatsStrengths
+  5) potentialThreatsWeaknesses
+  6) targetAudiences:
+     - audience
+     - priority
+     - inferredRoleToConsumers
+     - functionalBenefits
+     - emotionalBenefits
+  7) recentCampaigns
+  8) keyMarketingChannels
+  9) socialMediaChannels with channel and full URL
+- Keep entries concise and specific (no vague filler).
+- Provide sources at both the per-brand level and global level.
+
+Evidence digest (quality and date weighted):
+${evidenceDigest}`;
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemInstruction },
+    { role: 'user', content: prompt },
+  ];
+
+  if (files && files.length > 0) {
+    const fileContents = files.map((f) => `File: ${f.name}\nContent: ${f.data}`).join('\n\n');
+    messages.push({ role: 'user', content: `Attached Documents:\n${fileContents}` });
+  }
+
+  const report = await runStructuredCall({
+    schema: BrandResearchMatrixSchema,
+    schemaName: 'brand_research_matrix',
+    mode: 'brand',
+    outputType: 'analysis',
+    messages,
+    qualityGate: (payload) => Array.isArray(payload.results) && payload.results.length >= Math.max(1, sanitizedBrands.length),
+    maxRetries: 3,
+  });
+
+  return report;
 }
 
 // Re-export types for convenience

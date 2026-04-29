@@ -6,11 +6,12 @@ import { getUserTelemetry } from './services/telemetry';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
-import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Calendar, Activity } from 'lucide-react';
+import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Calendar, Activity, Palette, ArrowLeft } from 'lucide-react';
+import { CompassRoseIcon } from './components/icons/CompassRoseIcon';
 import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from './services/azure-openai';
 import { generateCulturalMatrix, suggestBrands, askMatrixQuestion, generateDeepDive, generateDeepDivesBatch } from './services/azure-openai';
 import { SplashGrid } from './components/SplashGrid';
-import { BrandDeepDivePage } from './components/VisualDesignExcavator';
+import { BrandDeepDivePage } from './components/DesignExcavator';
 import { TrendLifecycleBadge } from './components/TrendLifecycleBadge';
 import { ProgressiveLoader } from './components/ProgressiveLoader';
 import { Accordion } from './components/Accordion';
@@ -257,15 +258,28 @@ const persistSavedMatrices = (matrices: SavedMatrix[]): boolean => {
 
 export default function App() {
   const SPLASH_DURATION_MS = 3000;
+  const skipSplashToHome =
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('home') === '1';
+  const isDirectCulturalRoute =
+    typeof window !== 'undefined' && window.location.pathname === '/cultural-archaeologist';
+  const isDirectVisualDesignRoute =
+    typeof window !== 'undefined' && window.location.pathname === '/visual-design-excavator';
   // Instantly skip splash in test environments
   const [showSplash, setShowSplash] = useState(() => {
+    if (skipSplashToHome || isDirectCulturalRoute || isDirectVisualDesignRoute) {
+      return false;
+    }
     if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') {
       return false;
     }
     return true;
   });
   const [isSplashHeld, setIsSplashHeld] = useState(false);
-  const [activeExperience, setActiveExperience] = useState<'research' | 'brand' | null>(null);
+  const [activeExperience, setActiveExperience] = useState<'research' | 'brand' | null>(() => {
+    if (isDirectVisualDesignRoute) return 'brand';
+    if (isDirectCulturalRoute) return 'research';
+    return null;
+  });
   const [hasOpenedBrand, setHasOpenedBrand] = useState(false);
   const [brand, setBrand] = useState('');
   const [audience, setAudience] = useState('');
@@ -1347,7 +1361,7 @@ export default function App() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
-            className="max-w-3xl mx-auto text-center min-h-[78vh] flex flex-col"
+            className="max-w-6xl mx-auto text-center min-h-[78vh] flex flex-col"
           >
             <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3 mx-auto">
               <Sparkles className="w-5 h-5" />
@@ -1360,9 +1374,9 @@ export default function App() {
                 Choose Your Research Experience
               </h2>
               <p className="subheader-copy text-zinc-700 mb-10 text-lg md:text-xl font-medium">
-                Start with a cultural deep dive or jump into a visual identity analysis.
+                Start with cultural research, run a brand audit, or jump into a visual identity analysis.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
                 <button
                   onClick={() => setActiveExperience('research')}
                   className="text-left bg-white/90 border border-zinc-200/80 border-[1px] rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
@@ -1373,8 +1387,27 @@ export default function App() {
                   <p className="subheader-copy text-base text-zinc-500">
                     Generate sharper insights about any audience through a cultural lens.
                   </p>
-                  <ul className="mt-3 space-y-1">
+                  <ul className="mt-4 space-y-1">
                     {['Audience research', 'Strategy development', 'Campaign & content ideation', 'Creative briefs', 'Pitches'].map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-sm text-zinc-500">
+                        <span className="w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </button>
+                <button
+                  onClick={() => window.location.assign('/brand-navigator')}
+                  className="text-left bg-white/90 border border-zinc-200/80 border-[1px] rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
+                >
+                  <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
+                    <CompassRoseIcon className="w-4 h-4" /> Brand Navigator
+                  </div>
+                  <p className="subheader-copy text-base text-zinc-500">
+                    Audit multiple brands to compare positionings, messages, campaigns, etc.
+                  </p>
+                  <ul className="mt-4 space-y-1">
+                    {['Brand audits & competitive analysis', 'Opportunity space identification', 'Messaging development', 'Creative briefs','Pitches'].map((item) => (
                       <li key={item} className="flex items-center gap-2 text-sm text-zinc-500">
                         <span className="w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
                         {item}
@@ -1387,7 +1420,7 @@ export default function App() {
                   className="text-left bg-white/90 border border-zinc-200/80 border-[1px] rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
-                    <Sparkles className="w-4 h-4" /> Visual Design Excavator
+                    <Palette className="w-4 h-4" /> Design Excavator
                     <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">
                       Beta
                     </span>
@@ -1395,7 +1428,7 @@ export default function App() {
                   <p className="subheader-copy text-base text-zinc-500">
                     Compare design systems across brands: logos, colors, typography, visual cues.
                   </p>
-                  <ul className="mt-3 space-y-1">
+                  <ul className="mt-4 space-y-1">
                     {['Competitive research', 'Branding strategy development', 'Visual identity exploration', 'Creative briefs', 'Pitches'].map((item) => (
                       <li key={item} className="flex items-center gap-2 text-sm text-zinc-500">
                         <span className="w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
@@ -1411,19 +1444,34 @@ export default function App() {
 
         {(activeExperience === 'brand' || hasOpenedBrand) && (
           <div className={activeExperience === 'brand' ? '' : 'hidden'}>
-            <BrandDeepDivePage onBack={() => setActiveExperience('research')} />
+            <BrandDeepDivePage onBack={() => window.location.assign('/?home=1')} />
           </div>
         )}
 
         {activeExperience === 'research' && (
           <>
+            <div className="absolute top-6 left-6 z-50 no-print">
+              <button
+                onClick={() => window.location.assign('/?home=1')}
+                className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400/40 focus:ring-offset-2 rounded-md"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+              </button>
+            </div>
             {/* Top Navigation / Actions */}
             <div className="absolute top-6 right-6 z-50 no-print flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-2">
               <button
-                onClick={() => setActiveExperience('brand')}
+                onClick={() => window.location.assign('/brand-navigator')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
               >
-                <Sparkles className="w-4 h-4" /> Visual Design Excavator
+                <CompassRoseIcon className="w-4 h-4" /> Brand Navigator
+              </button>
+              <button
+                onClick={() => window.location.assign('/visual-design-excavator')}
+                className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
+              >
+                <Palette className="w-4 h-4" /> Design Excavator
                 <span className="align-super ml-3 inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold tracking-wide border border-indigo-200">
                   Beta
                 </span>
@@ -2730,7 +2778,7 @@ export default function App() {
       </main>
 
       <footer className="relative z-10 py-6 text-center no-print">
-        <p className="copyright-copy text-[10px] text-zinc-400 mt-1">© 2026 Brand Atlas by The Kapalaran Group LLC | All rights reserved</p>
+        <p className="copyright-copy text-[10px] text-zinc-400 mt-1">© 2026 Brand Atlas by The Kapalaran Group LLC | All rights reserved | <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-zinc-500">Privacy Policy</a></p>
       </footer>
     </div>
   );
@@ -2739,6 +2787,7 @@ export default function App() {
 function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], onDeepDive, onOpenVocabularyExtractor, showDocumentInsights = false }: { title: string; subtext: string; items: MatrixItem[]; delay: number; highlightedInsights?: string[]; onDeepDive?: (item: MatrixItem) => void; onOpenVocabularyExtractor?: () => void; showDocumentInsights?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const INITIAL_SHOW = 3;
+  const cardTestId = `matrix-card-${title.toLowerCase().replace(/\s+/g, '-')}`;
 
   const confidenceChipClass = (confidence?: string) => {
     if (confidence === 'high') {
@@ -2767,16 +2816,17 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
     return { cleanText: stripped, labels };
   };
   
-  if (!items || items.length === 0) return null;
-  
-  const visibleItems = isExpanded ? items : items.slice(0, INITIAL_SHOW);
-  const hasMoreItems = items.length > INITIAL_SHOW;
+  const safeItems = items || [];
+  const hasItems = safeItems.length > 0;
+  const visibleItems = isExpanded ? safeItems : safeItems.slice(0, INITIAL_SHOW);
+  const hasMoreItems = safeItems.length > INITIAL_SHOW;
   
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay }}
+      data-testid={cardTestId}
       className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-shadow duration-300 break-inside-avoid print-break-inside-avoid w-full"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -2792,73 +2842,79 @@ function MatrixCard({ title, subtext, items, delay, highlightedInsights = [], on
         )}
       </div>
       <p className="subheader-copy text-xs text-zinc-500 mb-4">{subtext}</p>
-      <ul className="space-y-3">
-        <AnimatePresence>
-          {visibleItems.map((item, index) => {
-            const isHighlighted = highlightedInsights.includes(item.text);
-            const { cleanText, labels } = extractEvidenceLabels(item.text);
-            return (
-              <motion.li
-                key={index}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                className={`text-sm leading-relaxed flex items-start p-3 rounded-xl transition-all duration-300 group relative ${
-                  isHighlighted
-                    ? 'ring-2 ring-indigo-500 bg-indigo-50 shadow-md transform scale-[1.02] z-10 text-indigo-950'
-                    : item.isHighlyUnique 
-                      ? 'bg-indigo-50/50 border border-indigo-100/50 text-indigo-950' 
-                      : showDocumentInsights && item.isFromDocument
-                        ? 'bg-emerald-50/30 border border-emerald-100/30 text-emerald-950'
-                        : 'text-zinc-600 hover:bg-zinc-50'
-                }`}
-              >
-                {(item.isHighlyUnique || (showDocumentInsights && item.isFromDocument)) && (
-                  <span className="mr-3 mt-0.5 shrink-0 flex items-center gap-1.5">
-                    {item.isHighlyUnique && <Sparkles className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-indigo-500'}`} />}
-                    {showDocumentInsights && item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
-                  </span>
-                )}
-                <span className="flex-1 pr-8">
-                  {cleanText}
-                  {labels.map((label) => (
-                    <span key={`${index}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
-                      {label}
-                    </span>
-                  ))}
-                  {item.confidenceLevel && (
-                    <span className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${confidenceChipClass(item.confidenceLevel)}`}>
-                      {item.confidenceLevel} confidence
+      {hasItems ? (
+        <ul className="space-y-3">
+          <AnimatePresence>
+            {visibleItems.map((item, index) => {
+              const isHighlighted = highlightedInsights.includes(item.text);
+              const { cleanText, labels } = extractEvidenceLabels(item.text);
+              return (
+                <motion.li
+                  key={index}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`text-sm leading-relaxed flex items-start p-3 rounded-xl transition-all duration-300 group relative ${
+                    isHighlighted
+                      ? 'ring-2 ring-indigo-500 bg-indigo-50 shadow-md transform scale-[1.02] z-10 text-indigo-950'
+                      : item.isHighlyUnique 
+                        ? 'bg-indigo-50/50 border border-indigo-100/50 text-indigo-950' 
+                        : showDocumentInsights && item.isFromDocument
+                          ? 'bg-emerald-50/30 border border-emerald-100/30 text-emerald-950'
+                          : 'text-zinc-600 hover:bg-zinc-50'
+                  }`}
+                >
+                  {(item.isHighlyUnique || (showDocumentInsights && item.isFromDocument)) && (
+                    <span className="mr-3 mt-0.5 shrink-0 flex items-center gap-1.5">
+                      {item.isHighlyUnique && <Sparkles className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-indigo-500'}`} />}
+                      {showDocumentInsights && item.isFromDocument && <FileText className={`w-4 h-4 ${isHighlighted ? 'text-indigo-600' : 'text-emerald-500'}`} />}
                     </span>
                   )}
-                  <span className="inline-block ml-2 align-middle">
-                    <TrendLifecycleBadge stage={item.trendLifecycle} />
-                  </span>
-                  {item.sourceType && (
-                    <span className="inline-block ml-2 px-1.5 py-0.5 bg-zinc-100 text-zinc-500 text-[10px] uppercase tracking-wider font-semibold rounded border border-zinc-200 align-middle">
-                      {item.sourceType}
+                  <span className="flex-1 pr-8">
+                    {cleanText}
+                    {labels.map((label) => (
+                      <span key={`${index}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
+                        {label}
+                      </span>
+                    ))}
+                    {item.confidenceLevel && (
+                      <span className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${confidenceChipClass(item.confidenceLevel)}`}>
+                        {item.confidenceLevel} confidence
+                      </span>
+                    )}
+                    <span className="inline-block ml-2 align-middle">
+                      <TrendLifecycleBadge stage={item.trendLifecycle} />
                     </span>
+                    {item.sourceType && (
+                      <span className="inline-block ml-2 px-1.5 py-0.5 bg-zinc-100 text-zinc-500 text-[10px] uppercase tracking-wider font-semibold rounded border border-zinc-200 align-middle">
+                        {item.sourceType}
+                      </span>
+                    )}
+                  </span>
+                  {onDeepDive && (
+                    <button
+                      onClick={() => onDeepDive(item)}
+                      className={`absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all no-print ${
+                        item.deepDive 
+                          ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 opacity-100' 
+                          : 'text-zinc-400 hover:text-indigo-600 hover:bg-indigo-100'
+                      }`}
+                      title={item.deepDive ? "View Deep Dive" : "Generate Deep Dive"}
+                    >
+                      {item.deepDive ? <Check className="w-4 h-4" /> : <Target className="w-4 h-4" />}
+                    </button>
                   )}
-                </span>
-                {onDeepDive && (
-                  <button
-                    onClick={() => onDeepDive(item)}
-                    className={`absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all no-print ${
-                      item.deepDive 
-                        ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 opacity-100' 
-                        : 'text-zinc-400 hover:text-indigo-600 hover:bg-indigo-100'
-                    }`}
-                    title={item.deepDive ? "View Deep Dive" : "Generate Deep Dive"}
-                  >
-                    {item.deepDive ? <Check className="w-4 h-4" /> : <Target className="w-4 h-4" />}
-                  </button>
-                )}
-              </motion.li>
-            );
-          })}
-        </AnimatePresence>
-      </ul>
+                </motion.li>
+              );
+            })}
+          </AnimatePresence>
+        </ul>
+      ) : (
+        <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-5 text-sm text-zinc-500">
+          No results for this insight category yet.
+        </div>
+      )}
       
       {hasMoreItems && (
         <motion.button

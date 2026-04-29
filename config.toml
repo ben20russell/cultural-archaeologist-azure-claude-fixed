@@ -1,7 +1,7 @@
 model = "gpt-5.4-mini"  
 model_provider = "azure"
 model_reasoning_effort = "medium"
-model_max_tokens = 120000
+model_max_tokens = 64000
 
 [model_providers.azure]
 name = "Azure OpenAI"

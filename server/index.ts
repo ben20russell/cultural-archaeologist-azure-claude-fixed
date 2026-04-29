@@ -256,15 +256,7 @@ const server = app.listen(PORT, () => {
   console.log(`🗄️ Admin server running at http://localhost:${PORT}`);
   console.log(`📊 View searches at http://localhost:${PORT}/admin`);
   console.log(`🖼️ Image proxy running at http://localhost:${PORT}/api/image-proxy`);
-
-  const missingGoogleConfig = getMissingGoogleSheetsConfig();
-  if (missingGoogleConfig.length > 0) {
-    console.warn(
-      `[feedback] Google Sheets feedback sync is disabled. Missing env vars: ${missingGoogleConfig.join(', ')}`,
-    );
-  } else {
-    console.log('[feedback] Google Sheets feedback sync is configured.');
-  }
+  console.log('[feedback] Google Sheets feedback sync is disabled in this build.');
 });
 
 server.on('error', (error: NodeJS.ErrnoException) => {
