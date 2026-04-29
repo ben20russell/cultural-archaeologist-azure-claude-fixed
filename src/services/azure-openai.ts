@@ -48,6 +48,7 @@ export interface MatrixItem {
   confidenceLevel?: 'low' | 'medium' | 'high';
   trendLifecycle?: 'emerging' | 'peaking' | 'declining';
   deepDive?: DeepDiveReport;
+  backgroundWriteup?: string;
 }
 
 export interface UploadedFile {
@@ -684,6 +685,32 @@ export function formatDevilsAdvocateLens(devil: z.infer<typeof DevilsAdvocateSch
   if (normalizedCounter) return normalizedCounter;
 
   return 'Alternative interpretation not available.';
+}
+
+function summarizeDevilsAdvocateLens(devil: z.infer<typeof DevilsAdvocateSchema>): string {
+  const full = formatDevilsAdvocateLens(devil);
+  if (full.length <= 320) return full;
+
+  const sentenceBreak = full.slice(0, 320).match(/^(.+?[.!?])\s/);
+  if (sentenceBreak?.[1]) return sentenceBreak[1].trim();
+
+  return `${full.slice(0, 317).trim()}...`;
+}
+
+function buildDevilsAdvocateBackgroundWriteup(devil: z.infer<typeof DevilsAdvocateSchema>): string {
+  const counter = devil.counterArgument?.replace(/\s+/g, ' ').trim();
+  const weaknesses = (devil.keyWeaknesses || [])
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const consolidated = devil.consolidatedSummary?.replace(/\s+/g, ' ').trim();
+
+  const sections = [
+    counter ? `Counter-argument: ${counter}` : '',
+    weaknesses.length > 0 ? `Key weaknesses: ${weaknesses.join(' | ')}` : '',
+    consolidated ? `Consolidated summary: ${consolidated}` : '',
+  ].filter(Boolean);
+
+  return sections.join('\n');
 }
 
 function normalizeHttpsUrl(rawUrl?: string | null): string | null {
@@ -1743,12 +1770,13 @@ Rules:
   interpretedMatrix.contradictions = [
     ...interpretedMatrix.contradictions,
     {
-      text: `[SPECULATIVE] Devil's advocate lens: ${formatDevilsAdvocateLens(devil)}`,
+      text: `[SPECULATIVE] Devil's advocate lens: ${summarizeDevilsAdvocateLens(devil)}`,
       isHighlyUnique: false,
       sourceType: 'Methodological challenge',
       confidenceLevel: 'low' as const,
       trendLifecycle: 'emerging' as const,
       isFromDocument: false,
+      backgroundWriteup: buildDevilsAdvocateBackgroundWriteup(devil),
     },
   ].slice(0, 10);
 
