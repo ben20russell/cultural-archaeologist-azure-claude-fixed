@@ -119,7 +119,7 @@ describe('BrandNavigator', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
 
-    const generateButton = await screen.findByRole('button', { name: /generate brand analysis/i });
+    const generateButton = await screen.findByRole('button', { name: /generate analysis/i });
     fireEvent.click(generateButton);
 
     expect(await screen.findByText(/at least one brand is required/i)).toBeInTheDocument();

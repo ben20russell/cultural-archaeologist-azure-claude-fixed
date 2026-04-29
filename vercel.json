@@ -1,0 +1,26 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "routes": [
+    {
+      "src": "/BrandNavigator/?",
+      "headers": {
+        "Location": "/brand-navigator"
+      },
+      "status": 308
+    },
+    {
+      "src": "/brandnavigator/?",
+      "headers": {
+        "Location": "/brand-navigator"
+      },
+      "status": 308
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/index.html"
+    }
+  ]
+}

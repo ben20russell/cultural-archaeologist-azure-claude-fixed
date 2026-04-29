@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Palette, ArrowLeft } from 'lucide-react';
 import { BrandResearchMatrix, UploadedFile } from '../services/azure-openai';
 import { generateBrandResearchMatrix, suggestBrands } from '../services/azure-openai';
+import { isBrandNavigatorPath } from '../services/navigation-routes';
 import { SplashGrid } from './SplashGrid';
 import { BrandDeepDivePage } from './DesignExcavator';
 import { ProgressiveLoader } from './ProgressiveLoader';
@@ -90,7 +91,13 @@ const parseBrandsInput = (value: string): string[] => {
 export default function BrandNavigator() {
   const SPLASH_DURATION_MS = 3000;
   const isDirectBrandNavigatorRoute =
-    typeof window !== 'undefined' && window.location.pathname === '/brand-navigator';
+    typeof window !== 'undefined' &&
+    isBrandNavigatorPath(window.location.pathname);
+  console.log('[BrandNavigator] Route context:', {
+    pathname: typeof window !== 'undefined' ? window.location.pathname : '',
+    hash: typeof window !== 'undefined' ? window.location.hash : '',
+    isDirectBrandNavigatorRoute,
+  });
   // Instantly skip splash in test environments
   const [showSplash, setShowSplash] = useState(() => {
     if (isDirectBrandNavigatorRoute) {
