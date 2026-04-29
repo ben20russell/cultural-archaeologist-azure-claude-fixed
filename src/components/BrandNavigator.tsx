@@ -90,8 +90,7 @@ const parseBrandsInput = (value: string): string[] => {
 export default function BrandNavigator() {
   const SPLASH_DURATION_MS = 3000;
   const isDirectBrandNavigatorRoute =
-    typeof window !== 'undefined' &&
-    (window.location.pathname === '/brand-navigator' || window.location.hash === '#brand-navigator');
+    typeof window !== 'undefined' && window.location.pathname === '/brand-navigator';
   // Instantly skip splash in test environments
   const [showSplash, setShowSplash] = useState(() => {
     if (isDirectBrandNavigatorRoute) {
@@ -993,7 +992,7 @@ export default function BrandNavigator() {
                   </ul>
                 </button>
                 <button
-                  onClick={() => window.location.assign('/#design-excavator')}
+                  onClick={() => window.location.assign('/visual-design-excavator')}
                   className="text-left bg-white/90 border border-zinc-200/80 border-[1px] rounded-3xl p-6 hover:border-zinc-300 hover:shadow-sm transition-all h-full flex flex-col justify-start main-box-hover"
                 >
                   <div className="inline-flex items-center gap-2 text-zinc-800 font-semibold mb-2 text-lg md:text-xl items-start">
@@ -1039,13 +1038,13 @@ export default function BrandNavigator() {
             {/* Top Navigation / Actions */}
             <div className="absolute top-6 right-6 z-50 no-print flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-2">
               <button
-                onClick={() => window.location.assign('/#cultural-archaeologist')}
+                onClick={() => window.location.assign('/cultural-archaeologist')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
               >
                 <Search className="w-4 h-4" /> Cultural Archaeologist
               </button>
               <button
-                onClick={() => window.location.assign('/#design-excavator')}
+                onClick={() => window.location.assign('/visual-design-excavator')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
               >
                 <Palette className="w-4 h-4" /> Design Excavator
@@ -1557,7 +1556,7 @@ export default function BrandNavigator() {
                 />
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" /> Generate Brand Analysis
+                  <Sparkles className="w-5 h-5" /> Generate Analysis
                 </>
               )}
               {/* Progress bar is now rendered inside ProgressiveLoader for alignment with % */}
@@ -1876,23 +1875,23 @@ function BrandResultCard({
 
         <BrandCriteriaSection title="Brand positioning">
           <div className="space-y-2">
-            <BrandResultInlineListField label="Taglines" values={positioning.taglines || []} />
-            <BrandResultInlineListField label="Key messages and claims" values={positioning.keyMessagesAndClaims || []} />
+            <BrandResultInlineField label="Taglines" value={(positioning.taglines || []).join(' | ')} />
+            <BrandResultInlineField label="Key messages and claims" value={(positioning.keyMessagesAndClaims || []).join(' | ')} />
             <BrandResultInlineField label="Value proposition" value={positioning.valueProposition} />
             <BrandResultInlineField label="Voice and tone" value={positioning.voiceAndTone} />
           </div>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Key offerings/products/services">
-          <BrandBulletList items={brandResult.keyOfferingsProductsServices || []} />
+          <p>{(brandResult.keyOfferingsProductsServices || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Strategic moats (strengths)">
-          <BrandBulletList items={brandResult.strategicMoatsStrengths || []} />
+          <p>{(brandResult.strategicMoatsStrengths || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Potential threats (weaknesses)">
-          <BrandBulletList items={brandResult.potentialThreatsWeaknesses || []} />
+          <p>{(brandResult.potentialThreatsWeaknesses || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Target audiences" className="lg:col-span-2">
@@ -1911,11 +1910,11 @@ function BrandResultCard({
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Recent campaigns">
-          <BrandBulletList items={brandResult.recentCampaigns || []} />
+          <p>{(brandResult.recentCampaigns || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Key marketing channels">
-          <BrandBulletList items={brandResult.keyMarketingChannels || []} />
+          <p>{(brandResult.keyMarketingChannels || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Social media channels">
@@ -1970,8 +1969,8 @@ function TargetAudienceCard({
       <BrandResultInlineField label="Audience" value={audienceLabel} />
       <BrandResultInlineField label="Priority of audience" value={audience.priority} />
       <BrandResultInlineField label="Role to consumers" value={audience.inferredRoleToConsumers} />
-      <BrandResultInlineListField label="Functional benefits" values={audience.functionalBenefits || []} />
-      <BrandResultInlineListField label="Emotional benefits" values={audience.emotionalBenefits || []} />
+      <BrandResultInlineField label="Functional benefits" value={(audience.functionalBenefits || []).join(' | ')} />
+      <BrandResultInlineField label="Emotional benefits" value={(audience.emotionalBenefits || []).join(' | ')} />
       <button
         type="button"
         data-testid={`deep-dive-audience-${brandIndex}-${audienceIndex}`}
@@ -2006,34 +2005,5 @@ function BrandResultInlineField({ label, value }: { label: string; value?: strin
     <p>
       <span className="font-medium text-zinc-900">{label}:</span> {value || 'N/A'}
     </p>
-  );
-}
-
-function BrandResultInlineListField({ label, values }: { label: string; values: string[] }) {
-  const normalized = (values || []).map((item) => item.trim()).filter(Boolean);
-  if (normalized.length === 0) {
-    return <BrandResultInlineField label={label} value="N/A" />;
-  }
-
-  return (
-    <div>
-      <p className="font-medium text-zinc-900">{label}:</p>
-      <BrandBulletList items={normalized} className="mt-1" />
-    </div>
-  );
-}
-
-function BrandBulletList({ items, className = '' }: { items: string[]; className?: string }) {
-  const normalized = (items || []).map((item) => item.trim()).filter(Boolean);
-  if (normalized.length === 0) {
-    return <p className="text-zinc-500">N/A</p>;
-  }
-
-  return (
-    <ul className={`space-y-1 ${className}`.trim()}>
-      {normalized.map((item, idx) => (
-        <li key={`${item}-${idx}`} className="text-zinc-700">• {item}</li>
-      ))}
-    </ul>
   );
 }
