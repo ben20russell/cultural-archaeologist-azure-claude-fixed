@@ -574,19 +574,27 @@ export default function BrandNavigator() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     const pendingBrand = brandInput.trim();
-    const brandsForGenerate = pendingBrand && !normalizedBrands.some((item) => item.toLowerCase() === pendingBrand.toLowerCase())
+    const brandNamesForGenerate = pendingBrand && !normalizedBrands.some((item) => item.toLowerCase() === pendingBrand.toLowerCase())
       ? [...normalizedBrands, pendingBrand]
       : normalizedBrands;
 
     if (pendingBrand) {
       console.log('Auto-committing pending brand on generate', { pendingBrand });
-      setSelectedBrands(brandsForGenerate);
+      setSelectedBrands(brandNamesForGenerate);
       setBrandInput('');
     }
 
+    const brandsForGenerate = brandNamesForGenerate
+      .map((name) => ({
+        name: (name || '').trim(),
+        website: '',
+      }))
+      .filter((brand) => brand.name.length > 0)
+      .slice(0, 6);
+
     setShowValidation(true);
     if (brandsForGenerate.length === 0) return;
-    const brandContext = brandsForGenerate.join(', ');
+    const brandContext = brandsForGenerate.map((brand) => brand.name).join(', ');
     console.log('Generating Brand Analysis', { audience, brands: brandsForGenerate, brandContext });
 
     setFakeProgress(5);
@@ -606,7 +614,7 @@ export default function BrandNavigator() {
         const { device, location, ip_address } = await getUserTelemetry();
 
         // 2. Inject it into the database payload
-        const customName = buildBrandNavigatorCustomName(brandsForGenerate, audience, topicFocus);
+        const customName = buildBrandNavigatorCustomName(brandsForGenerate.map((brand) => brand.name), audience, topicFocus);
         await supabase.from(BRAND_NAVIGATOR_TABLE).insert([
           {
             custom_name: customName,

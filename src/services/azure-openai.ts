@@ -43,6 +43,7 @@ import type {
 } from "openai/resources/chat/completions";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { createPrecisionIndex } from '../../lib/precision-index';
 import { buildBrandWebsiteContextPrompt, fetchBrandWebsiteContext } from './brand-web-context';
 
 export interface MatrixItem {
@@ -1885,13 +1886,24 @@ Rules:
 
 export async function generateBrandResearchMatrix(
   audience: string,
-  brands: string[],
+  brands: { name: string; website?: string }[],
   generations?: string[],
   topicFocus?: string,
   files?: UploadedFile[],
   sourcesType?: string[]
 ): Promise<BrandResearchMatrix> {
-  const sanitizedBrands = Array.from(new Set((brands || []).map((value) => value.trim()).filter(Boolean)));
+  const sanitizedBrandTargets = Array.from(
+    new Map(
+      (brands || [])
+        .map((brand) => ({
+          name: (brand?.name || '').trim(),
+          website: (brand?.website || '').trim(),
+        }))
+        .filter((brand) => Boolean(brand.name))
+        .map((brand) => [brand.name.toLowerCase(), brand] as const)
+    ).values()
+  );
+  const sanitizedBrands = sanitizedBrandTargets.map((brand) => brand.name);
   const brandContext = sanitizedBrands.join(', ');
   const topicStr = topicFocus ? `\n\nCRITICAL: Focus all findings on the topic "${topicFocus}".` : '';
   const audienceStr = audience?.trim() ? `\n\nPrimary audience context: "${audience.trim()}".` : '';
@@ -1911,10 +1923,10 @@ export async function generateBrandResearchMatrix(
   );
 
   const websiteTargets = await Promise.all(
-    sanitizedBrands.map(async (brandName) => {
-      const guessedWebsite = await suggestBrandWebsite(brandName);
+    sanitizedBrandTargets.map(async (brandTarget) => {
+      const guessedWebsite = brandTarget.website || await suggestBrandWebsite(brandTarget.name);
       return {
-        brand: brandName,
+        brand: brandTarget.name,
         website: guessedWebsite,
       };
     })
@@ -1952,6 +1964,20 @@ export async function generateBrandResearchMatrix(
     'brand'
   );
 
+  const urlsToScrape = brands.map((b) => b.website).filter(Boolean) as string[];
+  let firstPartyContext = '';
+
+  if (urlsToScrape.length > 0) {
+    try {
+      const scrapedPages = await createPrecisionIndex(urlsToScrape);
+      firstPartyContext = scrapedPages
+        .map((page) => `First-Party Data for ${page.sourceUrl}:\n${page.cleanMarkdown.slice(0, 3000)}`)
+        .join('\n\n');
+    } catch (e) {
+      console.warn("Failed to scrape brand websites", e);
+    }
+  }
+
   const prompt = `Generate a brand intelligence report for the following brands: ${brandContext}.${audienceStr}${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
 
 Requirements:
@@ -1982,6 +2008,8 @@ Requirements:
 
 Evidence digest (quality and date weighted):
 ${evidenceDigest}
+
+${firstPartyContext ? `\nFirst-party website excerpts:\n${firstPartyContext}` : ''}
 
 ${websiteGroundingContext ? `\n${websiteGroundingContext}` : ''}`;
 

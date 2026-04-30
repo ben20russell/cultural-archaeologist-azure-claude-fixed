@@ -154,7 +154,7 @@ describe('BrandNavigator', () => {
     fireEvent.click(generateButton);
 
     await waitFor(() => {
-      expect(generateBrandResearchMatrix).toHaveBeenCalledWith('', ['Patagonia'], [], '', [], []);
+      expect(generateBrandResearchMatrix).toHaveBeenCalledWith('', [{ name: 'Patagonia', website: '' }], [], '', [], []);
     });
   });
 
