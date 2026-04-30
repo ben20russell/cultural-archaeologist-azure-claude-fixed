@@ -18,6 +18,12 @@ import { Accordion } from './Accordion';
 import { FeedbackChatWidget } from './FeedbackChatWidget';
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { toSafeExternalHref } from '../services/external-links';
+import {
+  BRAND_SUGGESTION_DEBOUNCE_MS,
+  getLocalBrandSuggestions,
+  normalizeBrandTokens,
+  parseBrandsInput,
+} from '../services/brand-input';
 import pptxgen from 'pptxgenjs';
 import { supabase } from '../services/supabase-client';
 
@@ -300,7 +306,8 @@ export default function CulturalArchaeologist() {
   const [isSplashHeld, setIsSplashHeld] = useState(false);
   const [activeExperience, setActiveExperience] = useState<'research' | 'brand' | null>(initialExperience);
   const [hasOpenedBrand, setHasOpenedBrand] = useState(false);
-  const [brand, setBrand] = useState('');
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [brandInput, setBrandInput] = useState('');
   const [audience, setAudience] = useState('');
   const [showValidation, setShowValidation] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -348,6 +355,8 @@ export default function CulturalArchaeologist() {
   const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[], hasUploadedDocuments?: boolean} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const normalizedBrands = useMemo(() => normalizeBrandTokens(selectedBrands), [selectedBrands]);
+  const brandInputQuery = brandInput.trim();
 
   const [isGeneratingDeepDives, setIsGeneratingDeepDives] = useState(false);
   const [deepDiveProgress, setDeepDiveProgress] = useState({ current: 0, total: 0 });
@@ -367,7 +376,7 @@ export default function CulturalArchaeologist() {
   }, [savedMatrices, deletingIds]);
 
   const filteredSavedMatrices = useMemo(() => {
-    const search = (brand || '').trim().toLowerCase();
+    const search = (brandInput || '').trim().toLowerCase();
     if (!search) {
       return visibleSavedMatrices;
     }
@@ -377,7 +386,7 @@ export default function CulturalArchaeologist() {
         (sm.brand || '').toLowerCase().includes(search) ||
         (sm.audience || '').toLowerCase().includes(search)
     );
-  }, [brand, visibleSavedMatrices]);
+  }, [brandInput, visibleSavedMatrices]);
 
   const filteredMatrix = useMemo(() => {
     if (!matrix) {
@@ -450,7 +459,14 @@ export default function CulturalArchaeologist() {
   const structuredMatrixAnswer = useMemo(() => structureAskAnswer(matrixAnswer), [matrixAnswer]);
 
   const loadSavedMatrix = (sm: SavedMatrix, shouldScroll = false) => {
-    setBrand(sm.brand);
+    const parsedBrands = parseBrandsInput(sm.brand || '');
+    if (parsedBrands.length > 1) {
+      setSelectedBrands(parsedBrands);
+      setBrandInput('');
+    } else {
+      setSelectedBrands([]);
+      setBrandInput(sm.brand || '');
+    }
     setAudience(sm.audience);
     setSelectedGenerations(sm.generations || []);
     setTopicFocus(sm.topicFocus || '');
@@ -665,32 +681,65 @@ export default function CulturalArchaeologist() {
     return cleanup;
   }, [isLoading, averageLoadTime]);
 
+  const commitBrandInput = (rawValue: string): boolean => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return false;
+    }
 
+    setSelectedBrands((prev) => {
+      const exists = prev.some((item) => item.toLowerCase() === trimmed.toLowerCase());
+      if (exists) {
+        return prev;
+      }
+      const updated = [...prev, trimmed];
+      console.log('[cultural] Committed brand chip', { trimmed, count: updated.length });
+      return updated;
+    });
+    setBrandInput('');
+    return true;
+  };
 
+  const removeBrandChip = (brandToRemove: string) => {
+    setSelectedBrands((prev) => {
+      const updated = prev.filter((item) => item !== brandToRemove);
+      console.log('[cultural] Removed brand chip', { brandToRemove, count: updated.length });
+      return updated;
+    });
+  };
 
-  // Fetch brand suggestions as user types
+  // Fetch brand suggestions as user types.
   useEffect(() => {
     if (hasQuotaError) return;
 
-    if (!brand.trim() || brand.trim().length < 2) {
+    const activeQuery = brandInput.trim();
+    if (!activeQuery || activeQuery.length < 2) {
       setBrandSuggestions(prev => prev.length === 0 ? prev : []);
+      setIsSuggestingBrands(false);
       return;
     }
 
-    // Don't suggest if the brand matches an existing saved search exactly
-    if (visibleSavedMatrices.some(sm => (sm.brand || '').toLowerCase() === (brand || '').trim().toLowerCase())) {
+    // Don't suggest if the brand matches an existing saved search exactly.
+    if (visibleSavedMatrices.some(sm => (sm.brand || '').toLowerCase() === activeQuery.toLowerCase())) {
       setBrandSuggestions(prev => prev.length === 0 ? prev : []);
+      setIsSuggestingBrands(false);
       return;
     }
 
+    const localSuggestions = getLocalBrandSuggestions(
+      activeQuery,
+      visibleSavedMatrices.map((sm) => sm.brand || '')
+    );
+    setBrandSuggestions(localSuggestions);
+    setIsSuggestingBrands(true);
+
+    let cancelled = false;
     const timer = setTimeout(async () => {
-      setIsSuggestingBrands(true);
       try {
         let suggestions: string[] = [];
         try {
-          suggestions = await suggestBrands(brand);
+          suggestions = await suggestBrands(activeQuery);
         } catch (err: unknown) {
-          // Log error for debugging, but do not crash
           console.error('Brand suggestion error:', err);
           setToast('Failed to get brand suggestions. Please try again.');
           const errorMessage = getErrorMessage(err);
@@ -698,22 +747,30 @@ export default function CulturalArchaeologist() {
             setHasQuotaError(true);
           }
         }
-        setBrandSuggestions(Array.isArray(suggestions) ? suggestions : []);
+
+        const apiSuggestions = Array.isArray(suggestions) ? suggestions : [];
+        if (apiSuggestions.length > 0 && !cancelled) {
+          setBrandSuggestions(apiSuggestions);
+        }
       } catch (outerErr) {
-        // Defensive: catch any unexpected errors
         console.error('Unexpected error in brand suggestion effect:', outerErr);
-        setBrandSuggestions([]);
         setToast('An unexpected error occurred while suggesting brands.');
       } finally {
-        setIsSuggestingBrands(false);
+        if (!cancelled) {
+          setIsSuggestingBrands(false);
+        }
       }
-    }, 500); // 500ms debounce
+    }, BRAND_SUGGESTION_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
-  }, [brand, visibleSavedMatrices, hasQuotaError]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [brandInput, visibleSavedMatrices, hasQuotaError]);
 
   const handleReset = () => {
-    setBrand('');
+    setSelectedBrands([]);
+    setBrandInput('');
     setAudience('');
     setTopicFocus('');
     setSourcesType([]);
@@ -730,6 +787,17 @@ export default function CulturalArchaeologist() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const pendingBrand = brandInput.trim();
+    const brandTokensForGenerate = pendingBrand && !normalizedBrands.some((item) => item.toLowerCase() === pendingBrand.toLowerCase())
+      ? [...normalizedBrands, pendingBrand]
+      : normalizedBrands;
+    const brandContext = brandTokensForGenerate.join(', ');
+
+    if (pendingBrand) {
+      setSelectedBrands(brandTokensForGenerate);
+      setBrandInput('');
+    }
+
     setShowValidation(true);
     if (!audience.trim()) return;
 
@@ -743,9 +811,9 @@ export default function CulturalArchaeologist() {
     setHighlightedInsights([]);
     const hasUploadedDocuments = files.length > 0;
     try {
-      const result = await generateCulturalMatrix(audience, brand, selectedGenerations, topicFocus, files, sourcesType);
+      const result = await generateCulturalMatrix(audience, brandContext, selectedGenerations, topicFocus, files, sourcesType);
       setMatrix(result);
-      setMatrixMeta({ audience, brand, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
+      setMatrixMeta({ audience, brand: brandContext, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
 
       // Persist generated searches directly to Supabase
       try {
@@ -755,7 +823,7 @@ export default function CulturalArchaeologist() {
         // 2. Inject it into the database payload
         await supabase.from('searches').insert([
           {
-            brand: brand || null,
+            brand: brandContext || null,
             audience,
             topicFocus: topicFocus || null,
             generations: selectedGenerations,
@@ -802,7 +870,7 @@ export default function CulturalArchaeologist() {
       }
 
       // Start background deep dives
-      runBackgroundDeepDives(result, { audience, brand, generations: selectedGenerations, topicFocus });
+      runBackgroundDeepDives(result, { audience, brand: brandContext, generations: selectedGenerations, topicFocus });
 
     } catch (err: unknown) {
       console.error(err);
@@ -1495,7 +1563,7 @@ export default function CulturalArchaeologist() {
 
         {activeExperience === 'research' && (
           <>
-            <div className="absolute top-6 left-6 z-50 no-print">
+            <div className="absolute top-4 left-4 right-4 z-50 no-print sm:top-6 sm:left-6 sm:right-auto">
               <button
                 onClick={() => navigateToHomeDashboard()}
                 className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400/40 focus:ring-offset-2 rounded-md"
@@ -1505,7 +1573,7 @@ export default function CulturalArchaeologist() {
               </button>
             </div>
             {/* Top Navigation / Actions */}
-            <div className="absolute top-6 right-6 z-50 no-print flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-2">
+            <div className="absolute top-20 right-4 z-50 no-print flex flex-col items-end gap-3 sm:top-6 sm:right-6 sm:flex-row sm:items-center sm:gap-2">
               <button
                 onClick={() => navigateToHashRoute('brand-navigator')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
@@ -1900,7 +1968,7 @@ export default function CulturalArchaeologist() {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col items-center text-center mb-16 no-print">
+        <div className="flex flex-col items-center text-center mb-16 no-print pt-28 sm:pt-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1951,8 +2019,8 @@ export default function CulturalArchaeologist() {
             noValidate
             className={`w-full max-w-4xl mt-10 relative flex flex-col gap-4 ${isResearchControlsMinimized ? 'hidden' : ''}`}
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative flex flex-col w-full">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+              <div className="relative flex flex-col w-full self-start">
                 <div className="relative flex items-center w-full">
                   <Users className="absolute left-4 w-5 h-5 text-zinc-400" />
                   <input
@@ -1983,33 +2051,63 @@ export default function CulturalArchaeologist() {
                 )}
               </div>
               
-              <div className="relative flex items-center w-full" ref={brandDropdownRef}>
-                <Tag className="absolute left-4 w-5 h-5 text-zinc-400" />
-                <input
-                  type="text"
-                  value={brand}
-                  onChange={(e) => {
-                    setBrand(e.target.value);
-                    setIsBrandDropdownOpen(true);
-                  }}
-                  onFocus={() => setIsBrandDropdownOpen(true)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                    }
-                  }}
-                  placeholder="Brand or Category (Optional)"
-                  className="w-full pl-12 pr-12 py-4 bg-white border border-zinc-200 rounded-2xl text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm text-sm"
-                  disabled={isLoading}
-                />
-                {isDetecting && !brand.trim() && (
-                  <div className="absolute right-4 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+              <div className="relative flex flex-col w-full self-start" ref={brandDropdownRef}>
+                <div className="relative flex items-center w-full bg-white border border-zinc-200 rounded-2xl text-zinc-900 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all shadow-sm text-sm min-h-[56px]">
+                  <Tag className="absolute left-4 w-5 h-5 text-zinc-400" />
+                  <div className="w-full pl-12 pr-12 py-2 flex items-center gap-2 flex-wrap">
+                    {normalizedBrands.map((brandChip, chipIndex) => (
+                      <span
+                        key={`${brandChip}-${chipIndex}`}
+                        data-testid={`cultural-brand-chip-${chipIndex}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200 px-3 py-1 text-xs font-medium"
+                      >
+                        {brandChip}
+                        <button
+                          type="button"
+                          onClick={() => removeBrandChip(brandChip)}
+                          className="inline-flex items-center justify-center text-zinc-500 hover:text-zinc-800"
+                          aria-label={`Remove ${brandChip}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      data-testid="cultural-brands-input"
+                      type="text"
+                      value={brandInput}
+                      onChange={(e) => {
+                        setBrandInput(e.target.value);
+                        setIsBrandDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsBrandDropdownOpen(true)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ',') {
+                          e.preventDefault();
+                          commitBrandInput(brandInput);
+                          return;
+                        }
+
+                        if (e.key === 'Backspace' && !brandInput.trim() && normalizedBrands.length > 0) {
+                          e.preventDefault();
+                          const lastBrand = normalizedBrands[normalizedBrands.length - 1];
+                          removeBrandChip(lastBrand);
+                        }
+                      }}
+                      placeholder={normalizedBrands.length > 0 ? 'Add more brands or category' : 'Brands or Category (Optional)'}
+                      className="flex-1 min-w-[180px] py-2 bg-transparent text-zinc-900 placeholder-zinc-400 focus:outline-none"
+                      disabled={isLoading}
+                    />
                   </div>
-                )}
+                  {isDetecting && !brandInput.trim() && (
+                    <div className="absolute right-4 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                    </div>
+                  )}
+                </div>
                 
                 <AnimatePresence>
-                  {isBrandDropdownOpen && (visibleSavedMatrices.length > 0 || brandSuggestions.length > 0 || isSuggestingBrands) && (
+                  {isBrandDropdownOpen && (brandInputQuery.length > 0 || visibleSavedMatrices.length > 0 || brandSuggestions.length > 0 || isSuggestingBrands) && (
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -2017,6 +2115,12 @@ export default function CulturalArchaeologist() {
                       transition={{ duration: 0.2 }}
                       className="absolute top-full left-0 w-full mt-2 bg-white border border-zinc-200 rounded-2xl shadow-lg z-20 max-h-80 overflow-y-auto"
                     >
+                      {brandInputQuery.length > 0 && brandInputQuery.length < 2 && (
+                        <div className="p-4 text-sm text-zinc-500 text-center">
+                          Type at least 2 characters for suggestions.
+                        </div>
+                      )}
+
                       {isSuggestingBrands && (
                         <div className="p-4 text-sm text-zinc-500 flex items-center gap-2 justify-center border-b border-zinc-100">
                           <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
@@ -2035,8 +2139,7 @@ export default function CulturalArchaeologist() {
                                 key={`sug-${idx}`}
                                 type="button"
                                 onClick={() => {
-                                  setBrand(suggestion);
-                                  setIsBrandDropdownOpen(false);
+                                  commitBrandInput(suggestion);
                                 }}
                                 className="w-full text-left px-4 py-3 hover:bg-zinc-50 focus:outline-none focus:bg-zinc-50 rounded-xl transition-colors font-medium text-zinc-900"
                               >
@@ -2099,7 +2202,7 @@ export default function CulturalArchaeologist() {
                 </AnimatePresence>
               </div>
 
-              <div className="relative flex items-center w-full">
+              <div className="relative w-full self-start">
                 <Target className="absolute left-4 w-5 h-5 text-zinc-400" />
                 <input
                   type="text"
@@ -2348,7 +2451,14 @@ export default function CulturalArchaeologist() {
                   key={sm.id} 
                   className="group relative bg-white border border-zinc-200 rounded-2xl p-5 hover:shadow-md transition-all hover:border-indigo-200 cursor-pointer flex flex-col items-start text-left h-full" 
                   onClick={() => {
-                    setBrand(sm.brand);
+                    const parsedBrands = parseBrandsInput(sm.brand || '');
+                    if (parsedBrands.length > 1) {
+                      setSelectedBrands(parsedBrands);
+                      setBrandInput('');
+                    } else {
+                      setSelectedBrands([]);
+                      setBrandInput(sm.brand || '');
+                    }
                     setAudience(sm.audience);
                     setSelectedGenerations(sm.generations || []);
                     setTopicFocus(sm.topicFocus || '');

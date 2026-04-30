@@ -1522,7 +1522,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
   return (
     <>
       <div className="w-full px-2 sm:px-0">
-        <div className="absolute top-6 left-6 z-50 no-print">
+        <div className="absolute top-4 left-4 right-4 z-50 no-print sm:top-6 sm:left-6 sm:right-auto">
           <button
             onClick={onBack}
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400/40 focus:ring-offset-2 rounded-md"
@@ -1532,7 +1532,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
           </button>
         </div>
         {/* Top Navigation / Actions */}
-        <div className="absolute top-6 right-6 z-50 no-print flex items-center gap-2">
+        <div className="absolute top-20 right-4 z-50 no-print flex flex-col items-end gap-3 sm:top-6 sm:right-6 sm:flex-row sm:items-center sm:gap-2">
           <button
             onClick={() => navigateToHashRoute('cultural-archaeologist')}
             className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
@@ -1579,7 +1579,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-12 text-center flex flex-col items-center"
+        className="mb-12 text-center flex flex-col items-center pt-28 sm:pt-0"
       >
         <div className="inline-flex items-center justify-center p-2 bg-white rounded-2xl shadow-sm border border-indigo-200/80 mb-8">
           <Palette className="w-5 h-5 text-indigo-600" />

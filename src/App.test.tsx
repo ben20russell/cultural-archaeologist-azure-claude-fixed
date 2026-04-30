@@ -26,14 +26,14 @@ describe('App Component', () => {
 
   async function openResearchExperience() {
     fireEvent.click(screen.getByRole('button', { name: /cultural archaeologist/i }));
-    await screen.findByPlaceholderText(/Brand or Category \(Optional\)/i);
+    await screen.findByPlaceholderText(/Brands? or Category \(Optional\)/i);
   }
 
   it('renders the main heading', async () => {
     render(<App />);
     await waitForSplashToDisappear();
     await openResearchExperience();
-    expect(screen.getByPlaceholderText(/Brand or Category \(Optional\)/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Brands? or Category \(Optional\)/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Primary Audience \(Required\) \*/i)).toBeInTheDocument();
   });
 
@@ -41,7 +41,7 @@ describe('App Component', () => {
     render(<App />);
     await waitForSplashToDisappear();
     await openResearchExperience();
-    expect(screen.getByPlaceholderText(/Brand or Category \(Optional\)/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Brands? or Category \(Optional\)/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Primary Audience \(Required\) \*/i)).toBeInTheDocument();
   });
 
@@ -49,11 +49,34 @@ describe('App Component', () => {
     render(<App />);
     await waitForSplashToDisappear();
     await openResearchExperience();
-    const brandInput = screen.getByPlaceholderText(/Brand or Category \(Optional\)/i);
+    const brandInput = screen.getByPlaceholderText(/Brands? or Category \(Optional\)/i);
     fireEvent.change(brandInput, { target: { value: 'N' } });
     fireEvent.change(brandInput, { target: { value: 'Ni' } });
     await waitFor(() => expect(screen.getByText('Suggestions')).toBeInTheDocument());
     expect(screen.getByText('Nike')).toBeInTheDocument();
+  });
+
+  it('supports multiple brand chips while still allowing free-form category input', async () => {
+    render(<App />);
+    await waitForSplashToDisappear();
+    await openResearchExperience();
+
+    const brandInput = screen.getByTestId('cultural-brands-input');
+    fireEvent.change(brandInput, { target: { value: 'Nike' } });
+    fireEvent.keyDown(brandInput, { key: ',', code: 'Comma' });
+    expect(await screen.findByTestId('cultural-brand-chip-0')).toHaveTextContent('Nike');
+
+    fireEvent.change(brandInput, { target: { value: 'Adidas' } });
+    fireEvent.keyDown(brandInput, { key: 'Enter', code: 'Enter' });
+    expect(await screen.findByTestId('cultural-brand-chip-1')).toHaveTextContent('Adidas');
+
+    fireEvent.keyDown(screen.getByTestId('cultural-brands-input'), { key: 'Backspace', code: 'Backspace' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('cultural-brand-chip-1')).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('cultural-brands-input'), { target: { value: 'Outdoor lifestyle' } });
+    expect(screen.getByDisplayValue('Outdoor lifestyle')).toBeInTheDocument();
   });
 
   it('keeps topic input editable', async () => {
@@ -93,7 +116,7 @@ describe('App Component', () => {
     render(<App />);
     await waitForSplashToDisappear();
     await openResearchExperience();
-    const brandInput = screen.getByPlaceholderText(/Brand or Category/i);
+    const brandInput = screen.getByPlaceholderText(/Brands? or Category/i);
     fireEvent.change(brandInput, { target: { value: 'Ni' } });
     await waitFor(() => expect(screen.getByText(/Failed to get brand suggestions/i)).toBeInTheDocument());
   });

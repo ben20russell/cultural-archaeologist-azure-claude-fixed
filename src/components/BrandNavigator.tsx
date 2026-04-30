@@ -12,6 +12,12 @@ import { generateBrandResearchMatrix, suggestBrands } from '../services/azure-op
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { isBrandNavigatorRoute } from '../services/navigation-routes';
 import { toSafeExternalHref } from '../services/external-links';
+import {
+  BRAND_SUGGESTION_DEBOUNCE_MS,
+  getLocalBrandSuggestions,
+  normalizeBrandTokens,
+  parseBrandsInput,
+} from '../services/brand-input';
 import { SplashGrid } from './SplashGrid';
 import { BrandDeepDivePage } from './DesignExcavator';
 import { ProgressiveLoader } from './ProgressiveLoader';
@@ -85,56 +91,6 @@ const SOURCES_TYPES = [
   "Alternative Media",
   "Niche/Fringe"
 ];
-
-const FALLBACK_BRAND_SUGGESTIONS = [
-  'Nike',
-  'Nikon',
-  'Nintendo',
-  'Netflix',
-  'Nestle',
-  'Nespresso',
-  'North Face',
-  'New Balance',
-  'Apple',
-  'Amazon',
-  'Adobe',
-  'Airbnb',
-  'Google',
-  'Meta',
-  'Microsoft',
-  'OpenAI',
-  'Spotify',
-  'Starbucks',
-  'Samsung',
-  'Sony',
-  'Target',
-  'Tesla',
-  'TikTok',
-  'YouTube',
-];
-
-const getLocalBrandSuggestions = (query: string, savedMatrices: SavedMatrix[]): string[] => {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (normalizedQuery.length < 2) return [];
-
-  const fromSavedSearches = savedMatrices
-    .flatMap((matrix) => parseBrandsInput(matrix.brand || ''))
-    .filter(Boolean);
-
-  const merged = Array.from(new Set([...fromSavedSearches, ...FALLBACK_BRAND_SUGGESTIONS]));
-
-  return merged
-    .filter((candidate) => candidate.toLowerCase().includes(normalizedQuery))
-    .slice(0, 8);
-};
-
-const parseBrandsInput = (value: string): string[] => {
-  const parsed = value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  return Array.from(new Set(parsed));
-};
 
 const buildBrandNavigatorCustomName = (
   brands: string[],
@@ -236,7 +192,7 @@ export default function BrandNavigator() {
   const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[], hasUploadedDocuments?: boolean} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const normalizedBrands = useMemo(() => Array.from(new Set(selectedBrands.map((value) => value.trim()).filter(Boolean))), [selectedBrands]);
+  const normalizedBrands = useMemo(() => normalizeBrandTokens(selectedBrands), [selectedBrands]);
   const brandInputQuery = brandInput.trim();
   const [isResearchControlsMinimized, setIsResearchControlsMinimized] = useState(false);
 
@@ -517,9 +473,15 @@ export default function BrandNavigator() {
       return;
     }
 
+    const localSuggestions = getLocalBrandSuggestions(
+      activeQuery,
+      visibleSavedMatrices.map((sm) => sm.brand || '')
+    );
+    setBrandSuggestions(localSuggestions);
+
     setIsSuggestingBrands(true);
+    let cancelled = false;
     const timer = setTimeout(async () => {
-      setIsSuggestingBrands(true);
       try {
         let suggestions: string[] = [];
         try {
@@ -533,28 +495,26 @@ export default function BrandNavigator() {
 
         const apiSuggestions = Array.isArray(suggestions) ? suggestions : [];
         if (apiSuggestions.length > 0) {
-          setBrandSuggestions(apiSuggestions);
+          if (!cancelled) {
+            setBrandSuggestions(apiSuggestions);
+          }
           return;
         }
-
-        const localSuggestions = getLocalBrandSuggestions(activeQuery, visibleSavedMatrices);
-        console.log('Using local brand suggestion fallback', {
-          activeQuery,
-          localSuggestionsCount: localSuggestions.length,
-        });
-        setBrandSuggestions(localSuggestions);
       } catch (outerErr) {
         // Defensive: catch any unexpected errors
         console.error('Unexpected error in brand suggestion effect:', outerErr);
-        const localSuggestions = getLocalBrandSuggestions(activeQuery, visibleSavedMatrices);
-        setBrandSuggestions(localSuggestions);
         setToast('An unexpected error occurred while suggesting brands.');
       } finally {
-        setIsSuggestingBrands(false);
+        if (!cancelled) {
+          setIsSuggestingBrands(false);
+        }
       }
-    }, 500); // 500ms debounce
+    }, BRAND_SUGGESTION_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [brandInput, visibleSavedMatrices]);
 
   const handleReset = () => {
@@ -1143,7 +1103,7 @@ export default function BrandNavigator() {
 
         {activeExperience === 'research' && (
           <>
-            <div className="absolute top-6 left-6 z-50 no-print">
+            <div className="absolute top-4 left-4 right-4 z-50 no-print sm:top-6 sm:left-6 sm:right-auto">
               <button
                 onClick={() => navigateToHomeDashboard()}
                 className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-400/40 focus:ring-offset-2 rounded-md"
@@ -1153,7 +1113,7 @@ export default function BrandNavigator() {
               </button>
             </div>
             {/* Top Navigation / Actions */}
-            <div className="absolute top-6 right-6 z-50 no-print flex flex-col items-end gap-3 sm:flex-row sm:items-center sm:gap-2">
+            <div className="absolute top-20 right-4 z-50 no-print flex flex-col items-end gap-3 sm:top-6 sm:right-6 sm:flex-row sm:items-center sm:gap-2">
               <button
                 onClick={() => navigateToHashRoute('cultural-archaeologist')}
                 className="flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-700 rounded-full font-medium hover:bg-zinc-50 hover:border-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-500/50 focus:ring-offset-1 transition-all shadow-sm text-sm"
@@ -1215,7 +1175,7 @@ export default function BrandNavigator() {
 
         {/* Google Slides export and modal removed for Supabase-only version */}
 
-        <div className="flex flex-col items-center text-center mb-16 no-print">
+        <div className="flex flex-col items-center text-center mb-16 no-print pt-28 sm:pt-0">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
