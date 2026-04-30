@@ -2123,6 +2123,8 @@ Requirements:
      - full article URL
      - publishedAt (ISO date if available)
      - outlet
+- Include at least 3 recentNews items per brand when credible coverage exists.
+- Prefer items published within the last 12 months.
 - recentNews must be ordered most recent first.
 - For recentNews, prioritize major mainstream outlets (for example Reuters, AP, Bloomberg, WSJ, NYT, FT, BBC, CNN, NBC, ABC, CBS, USA Today, Guardian, NPR).
 - Keep entries concise and specific (no vague filler).
@@ -2160,39 +2162,60 @@ ${websiteGroundingContext ? `\n${websiteGroundingContext}` : ''}`;
 }
 
 async function validateNewsUrlWithContent(url: string): Promise<{ ok: boolean; title?: string; publishedAt?: string | null }> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/validate-article?url=${encodeURIComponent(url)}`;
+  const candidateBases = Array.from(
+    new Set(
+      [
+        getApiBaseUrl(),
+        '',
+        'http://127.0.0.1:3001',
+      ].map((value) => value.trim())
+    )
+  );
 
-  try {
-    const response = await fetch(endpoint);
-    if (!response.ok) {
-      console.log('[brand-research] News URL validation failed with non-200 response.', { url, status: response.status });
-      return { ok: false };
+  for (const baseUrl of candidateBases) {
+    const endpoint = `${baseUrl}/api/validate-article?url=${encodeURIComponent(url)}`;
+
+    try {
+      const response = await fetch(endpoint);
+      if (!response.ok) {
+        console.log('[brand-research] News URL validation failed with non-200 response.', {
+          url,
+          endpoint,
+          status: response.status,
+        });
+        continue;
+      }
+
+      const payload = await response.json();
+      const hasContent = Boolean(payload?.hasContent);
+      const isReachable = Boolean(payload?.isReachable);
+      const normalizedPublishedAt = normalizeIsoDate(payload?.publishedAt);
+      const title = typeof payload?.title === 'string' ? payload.title.trim() : '';
+
+      console.log('[brand-research] News URL validation response.', {
+        url,
+        endpoint,
+        isReachable,
+        hasContent,
+        publishedAt: normalizedPublishedAt,
+        title,
+      });
+
+      return {
+        ok: isReachable && hasContent,
+        ...(title ? { title } : {}),
+        ...(normalizedPublishedAt ? { publishedAt: normalizedPublishedAt } : {}),
+      };
+    } catch (error) {
+      console.log('[brand-research] News URL validation request failed.', {
+        url,
+        endpoint,
+        error,
+      });
     }
-
-    const payload = await response.json();
-    const hasContent = Boolean(payload?.hasContent);
-    const isReachable = Boolean(payload?.isReachable);
-    const normalizedPublishedAt = normalizeIsoDate(payload?.publishedAt);
-    const title = typeof payload?.title === 'string' ? payload.title.trim() : '';
-
-    console.log('[brand-research] News URL validation response.', {
-      url,
-      isReachable,
-      hasContent,
-      publishedAt: normalizedPublishedAt,
-      title,
-    });
-
-    return {
-      ok: isReachable && hasContent,
-      ...(title ? { title } : {}),
-      ...(normalizedPublishedAt ? { publishedAt: normalizedPublishedAt } : {}),
-    };
-  } catch (error) {
-    console.log('[brand-research] News URL validation request failed.', { url, error });
-    return { ok: false };
   }
+
+  return { ok: false };
 }
 
 async function validateAndSortBrandRecentNews(report: BrandResearchMatrix): Promise<BrandResearchMatrix> {

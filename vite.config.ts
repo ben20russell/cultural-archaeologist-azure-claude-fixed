@@ -24,6 +24,12 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/api': {
+          target: env.VITE_API_BASE_URL || 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
+      },
     },
     build: {
       rollupOptions: {
