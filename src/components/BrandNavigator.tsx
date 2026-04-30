@@ -11,7 +11,7 @@ import { BrandResearchMatrix, UploadedFile } from '../services/azure-openai';
 import { generateBrandResearchMatrix, suggestBrands } from '../services/azure-openai';
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { isBrandNavigatorRoute } from '../services/navigation-routes';
-import { toSafeExternalHref } from '../services/external-links';
+import { normalizeExternalHttpUrl, toSafeExternalHref } from '../services/external-links';
 import {
   BRAND_SUGGESTION_DEBOUNCE_MS,
   getLocalBrandSuggestions,
@@ -566,7 +566,8 @@ export default function BrandNavigator() {
     const hasUploadedDocuments = files.length > 0;
     try {
       const result = await generateBrandResearchMatrix(audience, brandsForGenerate, selectedGenerations, topicFocus, files, sourcesType);
-      setMatrix(result);
+      const sanitizedResult = sanitizeBrandResearchMatrix(result);
+      setMatrix(sanitizedResult);
       setMatrixMeta({ audience, brand: brandContext, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
 
       // Persist generated searches directly to Supabase
@@ -585,7 +586,7 @@ export default function BrandNavigator() {
             generations: selectedGenerations,
             sources_type: sourcesType,
             has_uploaded_documents: hasUploadedDocuments,
-            matrix: result,
+            matrix: sanitizedResult,
             device,
             location,
             ip_address,
@@ -759,7 +760,14 @@ export default function BrandNavigator() {
           ? brand.socialMediaChannels!.map((item) => `${item.channel || 'Channel'}: ${item.url || 'N/A'}`)
           : ['N/A'];
       case 'recentNews':
-        return (brand.recentNews || []).length > 0 ? brand.recentNews! : ['N/A'];
+        {
+          const recentHeadlineLines = buildRecentHeadlines(brand).map((item) =>
+            item.url
+              ? `${item.headline}${item.publishedAt ? ` (${new Date(item.publishedAt).toLocaleDateString()})` : ''}: ${item.url}`
+              : item.headline
+          );
+          return recentHeadlineLines.length > 0 ? recentHeadlineLines : ['N/A'];
+        }
       default:
         return ['N/A'];
     }
@@ -1902,8 +1910,249 @@ type BrandResultEntry = {
   recentCampaigns?: string[];
   keyMarketingChannels?: string[];
   socialMediaChannels?: Array<{ channel?: string; url?: string }>;
-  recentNews?: string[];
+  recentNews?: Array<
+    string | {
+      headline?: string;
+      title?: string;
+      url?: string;
+      publishedAt?: string | null;
+      date?: string | null;
+      outlet?: string | null;
+    }
+  >;
   sources?: Array<{ title?: string; url?: string }>;
+};
+
+type ParsedHeadline = {
+  headline: string;
+  url?: string;
+  publishedAt?: string;
+  outlet?: string;
+};
+
+const SOCIAL_CHANNEL_HOSTNAMES: Record<string, string[]> = {
+  instagram: ['instagram.com', 'www.instagram.com'],
+  linkedin: ['linkedin.com', 'www.linkedin.com'],
+  x: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
+  twitter: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'],
+  facebook: ['facebook.com', 'www.facebook.com', 'fb.com', 'www.fb.com'],
+  tiktok: ['tiktok.com', 'www.tiktok.com'],
+  youtube: ['youtube.com', 'www.youtube.com', 'youtu.be'],
+  threads: ['threads.net', 'www.threads.net'],
+  pinterest: ['pinterest.com', 'www.pinterest.com'],
+  snapchat: ['snapchat.com', 'www.snapchat.com'],
+  reddit: ['reddit.com', 'www.reddit.com'],
+};
+
+const URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
+const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
+const MAINSTREAM_NEWS_DOMAIN_PATTERNS = [
+  /reuters\.com$/i,
+  /apnews\.com$/i,
+  /nytimes\.com$/i,
+  /wsj\.com$/i,
+  /ft\.com$/i,
+  /bloomberg\.com$/i,
+  /bbc\.com$/i,
+  /bbc\.co\.uk$/i,
+  /cnn\.com$/i,
+  /nbcnews\.com$/i,
+  /abcnews\.go\.com$/i,
+  /cbsnews\.com$/i,
+  /usatoday\.com$/i,
+  /theguardian\.com$/i,
+  /forbes\.com$/i,
+  /fortune\.com$/i,
+  /businessinsider\.com$/i,
+  /washingtonpost\.com$/i,
+  /latimes\.com$/i,
+  /npr\.org$/i,
+];
+
+const isMainstreamNewsUrl = (url?: string): boolean => {
+  const safeUrl = normalizeExternalHttpUrl(url);
+  if (!safeUrl) return false;
+  try {
+    const hostname = new URL(safeUrl).hostname.toLowerCase();
+    return MAINSTREAM_NEWS_DOMAIN_PATTERNS.some((pattern) => pattern.test(hostname));
+  } catch {
+    return false;
+  }
+};
+
+const normalizeChannelKey = (channel?: string): string => {
+  const normalized = (channel || '').trim().toLowerCase();
+  if (normalized === 'twitter') return 'x';
+  return normalized;
+};
+
+const urlMatchesChannel = (channel?: string, url?: string): boolean => {
+  const normalizedUrl = normalizeExternalHttpUrl(url);
+  if (!normalizedUrl) return false;
+
+  const key = normalizeChannelKey(channel);
+  if (!key) return true;
+
+  const expected = SOCIAL_CHANNEL_HOSTNAMES[key];
+  if (!expected || expected.length === 0) return true;
+
+  try {
+    const hostname = new URL(normalizedUrl).hostname.toLowerCase();
+    return expected.some((allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`));
+  } catch {
+    return false;
+  }
+};
+
+const sanitizeSocialChannels = (
+  channels: Array<{ channel?: string; url?: string }> | undefined,
+  brandName: string
+): Array<{ channel: string; url: string }> => {
+  const sanitized: Array<{ channel: string; url: string }> = [];
+  const seen = new Set<string>();
+
+  (channels || []).forEach((channelEntry, index) => {
+    const channelLabel = (channelEntry.channel || '').trim() || 'Social channel';
+    const safeUrl = normalizeExternalHttpUrl(channelEntry.url);
+
+    if (!safeUrl) {
+      console.log('[BrandNavigator] Dropping social media link with invalid URL.', {
+        brandName,
+        channel: channelLabel,
+        rawUrl: channelEntry.url,
+        index,
+      });
+      return;
+    }
+
+    if (!urlMatchesChannel(channelLabel, safeUrl)) {
+      console.log('[BrandNavigator] Dropping social media link due to channel-domain mismatch.', {
+        brandName,
+        channel: channelLabel,
+        safeUrl,
+        index,
+      });
+      return;
+    }
+
+    const dedupeKey = `${channelLabel.toLowerCase()}|${safeUrl.toLowerCase()}`;
+    if (seen.has(dedupeKey)) {
+      console.log('[BrandNavigator] Skipping duplicate social media link.', {
+        brandName,
+        channel: channelLabel,
+        safeUrl,
+      });
+      return;
+    }
+
+    seen.add(dedupeKey);
+    sanitized.push({ channel: channelLabel, url: safeUrl });
+  });
+
+  return sanitized;
+};
+
+const parseHeadlineFromNewsItem = (
+  newsItem: string | { headline?: string; title?: string; url?: string; publishedAt?: string | null; date?: string | null; outlet?: string | null }
+): ParsedHeadline | null => {
+  if (typeof newsItem !== 'string') {
+    const objectHeadline = (newsItem.headline || newsItem.title || '').trim();
+    const objectUrl = normalizeExternalHttpUrl(newsItem.url);
+    const publishedRaw = (newsItem.publishedAt || newsItem.date || '').trim();
+    const publishedDate = publishedRaw ? new Date(publishedRaw) : null;
+    const publishedAt =
+      publishedDate && !Number.isNaN(publishedDate.getTime())
+        ? publishedDate.toISOString()
+        : undefined;
+    const outlet = (newsItem.outlet || '').trim() || undefined;
+    if (!objectHeadline && !objectUrl) return null;
+    return {
+      headline: objectHeadline || objectUrl || 'Article',
+      ...(objectUrl ? { url: objectUrl } : {}),
+      ...(publishedAt ? { publishedAt } : {}),
+      ...(outlet ? { outlet } : {}),
+    };
+  }
+
+  const trimmed = newsItem.trim();
+  if (!trimmed) return null;
+
+  const markdownMatch = trimmed.match(MARKDOWN_LINK_PATTERN);
+  if (markdownMatch) {
+    const headline = (markdownMatch[1] || '').trim();
+    const url = normalizeExternalHttpUrl(markdownMatch[2]);
+    if (!headline && !url) return null;
+    return {
+      headline: headline || 'Article',
+      ...(url ? { url } : {}),
+    };
+  }
+
+  const urlMatch = trimmed.match(URL_PATTERN);
+  if (urlMatch) {
+    const url = normalizeExternalHttpUrl(urlMatch[1]);
+    const headline = trimmed.replace(urlMatch[1], '').trim().replace(/^[-:|•\s]+/, '') || 'Article';
+    return {
+      headline,
+      ...(url ? { url } : {}),
+    };
+  }
+
+  return { headline: trimmed };
+};
+
+const buildRecentHeadlines = (brandResult: BrandResultEntry): ParsedHeadline[] => {
+  const fromRecentNews = (brandResult.recentNews || [])
+    .map(parseHeadlineFromNewsItem)
+    .filter((item): item is ParsedHeadline => Boolean(item));
+  const deduped: ParsedHeadline[] = [];
+  const seen = new Set<string>();
+
+  fromRecentNews.forEach((item) => {
+    if (!item.url || !isMainstreamNewsUrl(item.url)) {
+      console.log('[BrandNavigator] Dropping non-mainstream or URL-missing recent news item.', {
+        headline: item.headline,
+        url: item.url,
+      });
+      return;
+    }
+
+    const dedupeKey = `${item.headline.toLowerCase()}|${(item.url || '').toLowerCase()}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    deduped.push(item);
+  });
+
+  deduped.sort((a, b) => {
+    const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+    const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+
+  return deduped.slice(0, 8);
+};
+
+const sanitizeBrandResearchMatrix = (rawMatrix: BrandResearchMatrix): BrandResearchMatrix => {
+  const sanitizedResults = (rawMatrix.results || []).map((result, index) => {
+    const brandName = result.brandName || `Brand ${index + 1}`;
+    const sanitizedChannels = sanitizeSocialChannels(result.socialMediaChannels, brandName);
+
+    console.log('[BrandNavigator] Sanitized social channels while loading results.', {
+      brandName,
+      beforeCount: (result.socialMediaChannels || []).length,
+      afterCount: sanitizedChannels.length,
+    });
+
+    return {
+      ...result,
+      socialMediaChannels: sanitizedChannels,
+    };
+  });
+
+  return {
+    ...rawMatrix,
+    results: sanitizedResults,
+  };
 };
 
 function BrandResultsGrid({
@@ -1938,24 +2187,33 @@ function BrandResultCard({
 }) {
   const brandName = brandResult.brandName || `Brand ${brandIndex + 1}`;
   const positioning = brandResult.brandPositioning || {};
-  const recentNewsItems = (brandResult.recentNews && brandResult.recentNews.length > 0)
-    ? brandResult.recentNews
-    : (brandResult.sources || []).map((source) => source.title || source.url || '').filter(Boolean).slice(0, 5);
+  const sanitizedSocialChannels = sanitizeSocialChannels(brandResult.socialMediaChannels, brandName);
+  const recentNewsItems = buildRecentHeadlines(brandResult);
+
+  console.log('[BrandNavigator] Rendering brand result card with validated links.', {
+    brandName,
+    socialMediaBefore: (brandResult.socialMediaChannels || []).length,
+    socialMediaAfter: sanitizedSocialChannels.length,
+    recentHeadlinesCount: recentNewsItems.length,
+  });
 
   return (
     <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
       <h3 className="text-2xl font-bold text-zinc-900 mb-4">{brandName}</h3>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-zinc-700">
-        <BrandCriteriaSection title="High-level summary" className="lg:col-span-2">
+      <div
+        data-testid="brand-result-sections-layout"
+        className="columns-1 lg:columns-2 gap-3 text-sm text-zinc-700 [column-fill:balance]"
+      >
+        <BrandCriteriaSection title="High-level summary" className="mb-3 break-inside-avoid lg:[column-span:all]">
           <p>{brandResult.highLevelSummary || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand mission">
+        <BrandCriteriaSection title="Brand mission" className="mb-3 break-inside-avoid">
           <p>{brandResult.brandMission || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand positioning">
+        <BrandCriteriaSection title="Brand positioning" className="mb-3 break-inside-avoid">
           <div className="space-y-2">
             <BrandResultInlineField label="Taglines" value={(positioning.taglines || []).join(' | ')} />
             <BrandResultInlineField label="Key messages and claims" value={(positioning.keyMessagesAndClaims || []).join(' | ')} />
@@ -1964,19 +2222,19 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key offerings/products/services">
+        <BrandCriteriaSection title="Key offerings/products/services" className="mb-3 break-inside-avoid">
           <p>{(brandResult.keyOfferingsProductsServices || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Strategic moats (strengths)">
+        <BrandCriteriaSection title="Strategic moats (strengths)" className="mb-3 break-inside-avoid">
           <p>{(brandResult.strategicMoatsStrengths || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Potential threats (weaknesses)">
+        <BrandCriteriaSection title="Potential threats (weaknesses)" className="mb-3 break-inside-avoid">
           <p>{(brandResult.potentialThreatsWeaknesses || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Target audiences" className="lg:col-span-2">
+        <BrandCriteriaSection title="Target audiences" className="mb-3 break-inside-avoid lg:[column-span:all]">
           <div className="space-y-3">
             {(brandResult.targetAudiences || []).map((aud, audIndex) => (
               <TargetAudienceCard
@@ -1991,23 +2249,24 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent campaigns">
+        <BrandCriteriaSection title="Recent campaigns" className="mb-3 break-inside-avoid">
           <p>{(brandResult.recentCampaigns || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key marketing channels">
+        <BrandCriteriaSection title="Key marketing channels" className="mb-3 break-inside-avoid">
           <p>{(brandResult.keyMarketingChannels || []).join(' | ') || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Social media channels">
+        <BrandCriteriaSection title="Social media channels" className="mb-3 break-inside-avoid">
           <div className="flex flex-wrap gap-2">
-            {(brandResult.socialMediaChannels || []).map((channel, channelIndex) => (
+            {sanitizedSocialChannels.map((channel, channelIndex) => (
               <a
                 key={`${brandName}-social-${channelIndex}`}
+                data-testid={`social-link-${brandIndex}-${channelIndex}`}
                 href={toSafeExternalHref(channel.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                className="inline-flex items-center gap-1.5 text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-2.5 py-1 rounded-full transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
                 <span>{channel.channel || 'Social channel'}</span>
@@ -2016,11 +2275,33 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent news">
+        <BrandCriteriaSection title="Recent news" className="mb-3 break-inside-avoid">
           <ul className="space-y-1">
             {recentNewsItems.length > 0 ? (
               recentNewsItems.map((item, idx) => (
-                <li key={`${brandName}-news-${idx}`} className="text-zinc-700">• {item}</li>
+                <li key={`${brandName}-news-${idx}`} className="text-zinc-700">
+                  {item.url ? (
+                    <a
+                      data-testid={`news-link-${brandIndex}-${idx}`}
+                      href={toSafeExternalHref(item.url)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-start gap-1.5 text-indigo-700 hover:text-indigo-900 hover:underline"
+                    >
+                      <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>
+                        {item.headline}
+                        {item.publishedAt ? (
+                          <span className="ml-1 text-[11px] text-zinc-500">
+                            ({new Date(item.publishedAt).toLocaleDateString()})
+                          </span>
+                        ) : null}
+                      </span>
+                    </a>
+                  ) : (
+                    <span>• {item.headline}</span>
+                  )}
+                </li>
               ))
             ) : (
               <li className="text-zinc-500">N/A</li>
@@ -2074,8 +2355,12 @@ function BrandCriteriaSection({
   className?: string;
   children: React.ReactNode;
 }) {
+  const sectionTestId = `brand-result-section-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
   return (
-    <div className={`rounded-2xl border border-zinc-200 bg-zinc-50/50 p-4 ${className}`.trim()}>
+    <div
+      data-testid={sectionTestId}
+      className={`rounded-2xl border border-zinc-200 bg-zinc-50/50 p-3 h-fit self-start ${className}`.trim()}
+    >
       <h4 className="text-sm font-semibold text-zinc-900 mb-1">{title}</h4>
       {children}
     </div>
