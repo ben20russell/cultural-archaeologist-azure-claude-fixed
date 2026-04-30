@@ -45,3 +45,10 @@
 - `/src/services/`: API and external service integrations.
   - `azure-openai.ts` — primary AI service (Azure OpenAI)
   - `ai.ts` — legacy Gemini service (not used, kept for type exports)
+
+## Validation & Reliability Rules
+- After every code update, run full-project verification to ensure all functionality works correctly together:
+  - `npm run lint`
+  - `npm test`
+  - `npm run build`
+- If you encounter the runtime/tooling error `stream disconnected before completion: response.failed event received`, continue the task and retry or proceed with the next safe step instead of stopping.
