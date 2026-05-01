@@ -216,7 +216,7 @@ describe('BrandNavigator', () => {
     expect(missionSection.className).toContain('self-start');
 
     const sectionsLayout = screen.getByTestId('brand-result-sections-layout');
-    expect(sectionsLayout.className).toContain('lg:grid-cols-2');
+    expect(sectionsLayout.className).toContain('lg:columns-2');
   });
 
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
