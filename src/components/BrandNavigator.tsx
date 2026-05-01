@@ -2647,7 +2647,7 @@ function BrandResultCard({
 
       <div
         data-testid="brand-result-sections-layout"
-        className="columns-1 lg:columns-2 gap-4 text-sm text-zinc-700"
+        className="columns-1 lg:columns-2 gap-5 text-sm text-zinc-700"
       >
         <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:[column-span:all]">
           <p>{brandResult.highLevelSummary || 'N/A'}</p>
@@ -2821,7 +2821,7 @@ function BrandCriteriaSection({
         if (!compareEnabled || !sectionKey || !onRequestCompareAcrossBrands) return;
         onRequestCompareAcrossBrands(event, sectionKey);
       }}
-      className={`rounded-2xl border bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start break-inside-avoid mb-4 ${highlighted ? 'border-indigo-300 ring-2 ring-indigo-200/70' : 'border-zinc-200'} ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
+      className={`rounded-2xl border bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start break-inside-avoid mb-5 ${highlighted ? 'border-indigo-300 ring-2 ring-indigo-200/70' : 'border-zinc-200'} ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
     >
       <h4 className="text-sm font-semibold text-zinc-900 mb-3 uppercase tracking-wider inline-flex items-center gap-3">
         <span>{title}</span>
@@ -2845,17 +2845,36 @@ function BrandResultInlineField({ label, value }: { label: string; value?: strin
 }
 
 function BrandResultBulletList({ items }: { items: string[] }) {
+  const INITIAL_SHOW = 4;
+  const [isExpanded, setIsExpanded] = useState(false);
   const normalizedItems = (items || []).map((item) => (item || '').trim()).filter(Boolean);
   if (normalizedItems.length === 0) {
     return <p>N/A</p>;
   }
 
+  const hasMoreItems = normalizedItems.length > INITIAL_SHOW;
+  const visibleItems = isExpanded ? normalizedItems : normalizedItems.slice(0, INITIAL_SHOW);
+
   return (
-    <ul className="list-disc pl-5 space-y-1">
-      {normalizedItems.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
-      ))}
-    </ul>
+    <>
+      <ul className="list-disc pl-5 space-y-1">
+        {visibleItems.map((item, index) => (
+          <li key={`${item}-${index}`}>{item}</li>
+        ))}
+      </ul>
+      {hasMoreItems ? (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+        >
+          <span>
+            {isExpanded ? `Show less (${INITIAL_SHOW}/${normalizedItems.length})` : `Show all ${normalizedItems.length} items`}
+          </span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+        </button>
+      ) : null}
+    </>
   );
 }
 

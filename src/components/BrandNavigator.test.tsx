@@ -281,6 +281,60 @@ describe('BrandNavigator', () => {
     expect(orderedLinks[1]).toHaveTextContent('Older sustainability update');
   });
 
+  it('supports show-all-items behavior for long brand result lists', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [
+            'Strength one',
+            'Strength two',
+            'Strength three',
+            'Strength four',
+            'Strength five',
+            'Strength six',
+          ],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    expect(await screen.findByText('Strength four')).toBeInTheDocument();
+    expect(screen.queryByText('Strength five')).not.toBeInTheDocument();
+
+    const showAllBtn = screen.getByRole('button', { name: /show all 6 items/i });
+    fireEvent.click(showAllBtn);
+
+    expect(await screen.findByText('Strength five')).toBeInTheDocument();
+    expect(await screen.findByText('Strength six')).toBeInTheDocument();
+  });
+
   it('keeps valid mainstream recent news links even when publishedAt is missing', async () => {
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',
