@@ -45,6 +45,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { buildBrandWebsiteContextPrompt, fetchBrandWebsiteContext } from './brand-web-context';
 import { normalizeExternalHttpUrl, sanitizeApiBaseUrl } from './external-links';
+import { isLikelyArticleUrl, isTopMainstreamNewsUrl, TOP_MAINSTREAM_NEWS_HOSTS } from './news-outlets';
 
 export interface MatrixItem {
   text: string;
@@ -119,7 +120,15 @@ export interface BrandResearchResult {
   recentCampaigns: string[];
   keyMarketingChannels: string[];
   socialMediaChannels: { channel: string; url: string }[];
-  recentNews: { headline: string; url: string; publishedAt?: string | null; outlet?: string | null }[];
+  recentNews: Array<
+    string | {
+      headline?: string | null;
+      title?: string | null;
+      url?: string | null;
+      publishedAt?: string | null;
+      outlet?: string | null;
+    }
+  >;
   sources: Source[];
 }
 
@@ -554,46 +563,11 @@ const AUTHORITATIVE_DOMAIN_PATTERNS = [
   /bloomberg\.com$/i,
 ];
 
-const MAINSTREAM_NEWS_DOMAIN_PATTERNS = [
-  /reuters\.com$/i,
-  /apnews\.com$/i,
-  /nytimes\.com$/i,
-  /wsj\.com$/i,
-  /ft\.com$/i,
-  /bloomberg\.com$/i,
-  /bbc\.com$/i,
-  /bbc\.co\.uk$/i,
-  /cnn\.com$/i,
-  /nbcnews\.com$/i,
-  /abcnews\.go\.com$/i,
-  /cbsnews\.com$/i,
-  /usatoday\.com$/i,
-  /theguardian\.com$/i,
-  /forbes\.com$/i,
-  /fortune\.com$/i,
-  /businessinsider\.com$/i,
-  /washingtonpost\.com$/i,
-  /latimes\.com$/i,
-  /npr\.org$/i,
-];
-
 type ValidatedNewsItem = {
   headline: string;
   url: string;
   publishedAt?: string | null;
   outlet?: string | null;
-};
-
-const isMainstreamNewsUrl = (url?: string | null): boolean => {
-  const safeUrl = normalizeExternalHttpUrl(url);
-  if (!safeUrl) return false;
-
-  try {
-    const hostname = new URL(safeUrl).hostname.toLowerCase();
-    return MAINSTREAM_NEWS_DOMAIN_PATTERNS.some((pattern) => pattern.test(hostname));
-  } catch {
-    return false;
-  }
 };
 
 const normalizeIsoDate = (value?: string | null): string | null => {
@@ -608,6 +582,70 @@ const compareNewsByMostRecent = (a: ValidatedNewsItem, b: ValidatedNewsItem): nu
   const aTime = normalizeIsoDate(a.publishedAt) ? new Date(normalizeIsoDate(a.publishedAt)!).getTime() : 0;
   const bTime = normalizeIsoDate(b.publishedAt) ? new Date(normalizeIsoDate(b.publishedAt)!).getTime() : 0;
   return bTime - aTime;
+};
+
+const isWithinLastSixMonths = (value?: string | null): boolean => {
+  const normalized = normalizeIsoDate(value);
+  if (!normalized) return false;
+  const publishedTime = new Date(normalized).getTime();
+  if (Number.isNaN(publishedTime)) return false;
+
+  const now = Date.now();
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  return publishedTime >= sixMonthsAgo.getTime() && publishedTime <= now;
+};
+
+type RawRecentNewsCandidate =
+  | string
+  | {
+    headline?: string | null;
+    title?: string | null;
+    url?: string | null;
+    publishedAt?: string | null;
+    outlet?: string | null;
+  };
+
+const NEWS_MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
+const NEWS_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
+
+const normalizeRawRecentNewsCandidate = (candidate: RawRecentNewsCandidate): {
+  headline?: string;
+  url?: string;
+  publishedAt?: string | null;
+  outlet?: string | null;
+} => {
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) return {};
+
+    const markdownMatch = trimmed.match(NEWS_MARKDOWN_LINK_PATTERN);
+    if (markdownMatch) {
+      return {
+        headline: (markdownMatch[1] || '').trim(),
+        url: normalizeExternalHttpUrl(markdownMatch[2]) || undefined,
+      };
+    }
+
+    const urlMatch = trimmed.match(NEWS_URL_PATTERN);
+    if (urlMatch) {
+      const rawUrl = urlMatch[1];
+      const headline = trimmed.replace(rawUrl, '').trim().replace(/^[-:|•\s]+/, '');
+      return {
+        headline: headline || 'Article',
+        url: normalizeExternalHttpUrl(rawUrl) || undefined,
+      };
+    }
+
+    return { headline: trimmed };
+  }
+
+  return {
+    headline: ((candidate.headline || candidate.title || '') || '').trim() || undefined,
+    url: normalizeExternalHttpUrl(candidate.url || undefined) || undefined,
+    publishedAt: candidate.publishedAt || null,
+    outlet: (candidate.outlet || '').trim() || null,
+  };
 };
 
 function outputTemperature(outputType: OutputType): number {
@@ -1830,12 +1868,16 @@ const BrandResearchMatrixSchema = z.object({
         })
       ),
       recentNews: z.array(
-        z.object({
-          headline: z.string(),
-          url: z.string(),
-          publishedAt: z.string().nullable().optional(),
-          outlet: z.string().nullable().optional(),
-        })
+        z.union([
+          z.string(),
+          z.object({
+            headline: z.string().nullable().optional(),
+            title: z.string().nullable().optional(),
+            url: z.string().nullable().optional(),
+            publishedAt: z.string().nullable().optional(),
+            outlet: z.string().nullable().optional(),
+          }),
+        ])
       ).default([]),
       sources: z.array(SourceSchema),
     })
@@ -2124,9 +2166,9 @@ Requirements:
      - publishedAt (ISO date if available)
      - outlet
 - Include at least 3 recentNews items per brand when credible coverage exists.
-- Prefer items published within the last 12 months.
+- Only include recentNews items published within the last 6 months.
 - recentNews must be ordered most recent first.
-- For recentNews, prioritize major mainstream outlets (for example Reuters, AP, Bloomberg, WSJ, NYT, FT, BBC, CNN, NBC, ABC, CBS, USA Today, Guardian, NPR).
+- For recentNews, only use this strict top-50 mainstream media allowlist (domains): ${TOP_MAINSTREAM_NEWS_HOSTS.join(', ')}.
 - Keep entries concise and specific (no vague filler).
 - Provide sources at both the per-brand level and global level.
 
@@ -2157,143 +2199,49 @@ ${websiteGroundingContext ? `\n${websiteGroundingContext}` : ''}`;
     maxRetries: 3,
   });
 
-  const validatedReport = await validateAndSortBrandRecentNews(report);
-  return validatedReport;
+  return filterRecentNewsToTopMainstream(report);
 }
 
-async function validateNewsUrlWithContent(url: string): Promise<{ ok: boolean; title?: string; publishedAt?: string | null }> {
-  const candidateBases = Array.from(
-    new Set(
-      [
-        getApiBaseUrl(),
-        '',
-        'http://127.0.0.1:3001',
-      ].map((value) => value.trim())
-    )
-  );
+function filterRecentNewsToTopMainstream(report: BrandResearchMatrix): BrandResearchMatrix {
+  const normalizedResults = (report.results || []).map((brandResult) => {
+    const seen = new Set<string>();
+    const normalizedNews: ValidatedNewsItem[] = [];
 
-  for (const baseUrl of candidateBases) {
-    const endpoint = `${baseUrl}/api/validate-article?url=${encodeURIComponent(url)}`;
+    for (const candidate of brandResult.recentNews || []) {
+      const normalizedCandidate = normalizeRawRecentNewsCandidate(candidate as RawRecentNewsCandidate);
+      const headline = (normalizedCandidate.headline || '').trim();
+      const normalizedUrl = normalizeExternalHttpUrl(normalizedCandidate.url);
+      const publishedAt = normalizeIsoDate(normalizedCandidate.publishedAt);
+      const outlet = (normalizedCandidate.outlet || '').trim() || null;
 
-    try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        console.log('[brand-research] News URL validation failed with non-200 response.', {
-          url,
-          endpoint,
-          status: response.status,
-        });
-        continue;
-      }
+      if (!headline || !normalizedUrl || !publishedAt) continue;
+      if (!isTopMainstreamNewsUrl(normalizedUrl)) continue;
+      if (!isLikelyArticleUrl(normalizedUrl)) continue;
+      if (!isWithinLastSixMonths(publishedAt)) continue;
 
-      const payload = await response.json();
-      const hasContent = Boolean(payload?.hasContent);
-      const isReachable = Boolean(payload?.isReachable);
-      const normalizedPublishedAt = normalizeIsoDate(payload?.publishedAt);
-      const title = typeof payload?.title === 'string' ? payload.title.trim() : '';
+      const dedupeKey = normalizedUrl.toLowerCase();
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
 
-      console.log('[brand-research] News URL validation response.', {
-        url,
-        endpoint,
-        isReachable,
-        hasContent,
-        publishedAt: normalizedPublishedAt,
-        title,
-      });
-
-      return {
-        ok: isReachable && hasContent,
-        ...(title ? { title } : {}),
-        ...(normalizedPublishedAt ? { publishedAt: normalizedPublishedAt } : {}),
-      };
-    } catch (error) {
-      console.log('[brand-research] News URL validation request failed.', {
-        url,
-        endpoint,
-        error,
+      normalizedNews.push({
+        headline,
+        url: normalizedUrl,
+        publishedAt,
+        outlet,
       });
     }
-  }
 
-  return { ok: false };
-}
+    normalizedNews.sort(compareNewsByMostRecent);
 
-async function validateAndSortBrandRecentNews(report: BrandResearchMatrix): Promise<BrandResearchMatrix> {
-  const validatedResults = await Promise.all(
-    (report.results || []).map(async (brandResult) => {
-      const seen = new Set<string>();
-      const validatedNewsItems: ValidatedNewsItem[] = [];
-
-      for (const candidate of brandResult.recentNews || []) {
-        const normalizedUrl = normalizeExternalHttpUrl(candidate?.url);
-        const headline = (candidate?.headline || '').trim();
-        const publishedAt = normalizeIsoDate(candidate?.publishedAt);
-        const outlet = (candidate?.outlet || '').trim() || null;
-
-        if (!headline || !normalizedUrl) {
-          console.log('[brand-research] Dropping recent news item due to missing headline/url.', {
-            brandName: brandResult.brandName,
-            headline,
-            rawUrl: candidate?.url,
-          });
-          continue;
-        }
-
-        if (!isMainstreamNewsUrl(normalizedUrl)) {
-          console.log('[brand-research] Dropping recent news item due to non-mainstream domain.', {
-            brandName: brandResult.brandName,
-            headline,
-            normalizedUrl,
-          });
-          continue;
-        }
-
-        if (seen.has(normalizedUrl.toLowerCase())) {
-          console.log('[brand-research] Dropping duplicate recent news URL.', {
-            brandName: brandResult.brandName,
-            headline,
-            normalizedUrl,
-          });
-          continue;
-        }
-
-        const validated = await validateNewsUrlWithContent(normalizedUrl);
-        if (!validated.ok) {
-          console.log('[brand-research] Dropping recent news item due to failed reachability/content validation.', {
-            brandName: brandResult.brandName,
-            headline,
-            normalizedUrl,
-          });
-          continue;
-        }
-
-        seen.add(normalizedUrl.toLowerCase());
-        validatedNewsItems.push({
-          headline,
-          url: normalizedUrl,
-          publishedAt: validated.publishedAt || publishedAt || null,
-          outlet,
-        });
-      }
-
-      validatedNewsItems.sort(compareNewsByMostRecent);
-
-      console.log('[brand-research] Validated and sorted recent news for brand.', {
-        brandName: brandResult.brandName,
-        beforeCount: (brandResult.recentNews || []).length,
-        afterCount: validatedNewsItems.length,
-      });
-
-      return {
-        ...brandResult,
-        recentNews: validatedNewsItems.slice(0, 8),
-      };
-    })
-  );
+    return {
+      ...brandResult,
+      recentNews: normalizedNews.slice(0, 8),
+    };
+  });
 
   return {
     ...report,
-    results: validatedResults,
+    results: normalizedResults,
   };
 }
 

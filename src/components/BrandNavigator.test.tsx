@@ -212,7 +212,7 @@ describe('BrandNavigator', () => {
     expect(missionSection.className).toContain('self-start');
 
     const sectionsLayout = screen.getByTestId('brand-result-sections-layout');
-    expect(sectionsLayout.className).toContain('lg:columns-2');
+    expect(sectionsLayout.className).toContain('lg:grid-cols-2');
   });
 
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
@@ -322,6 +322,53 @@ describe('BrandNavigator', () => {
     expect(screen.queryByRole('link', { name: /linkedin/i })).not.toBeInTheDocument();
   });
 
+  it('filters out social media links that point to homepages or non-brand pages', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [
+            { channel: 'Instagram', url: 'https://www.instagram.com/patagonia/' },
+            { channel: 'Instagram', url: 'https://www.instagram.com/' },
+            { channel: 'Instagram', url: 'https://www.instagram.com/anotherbrand/' },
+          ],
+          recentNews: [],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    const links = await screen.findAllByTestId(/social-link-0-/);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute('href', 'https://www.instagram.com/patagonia/');
+  });
+
   it('does not use generic sources as recent news headlines', async () => {
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',
@@ -366,7 +413,9 @@ describe('BrandNavigator', () => {
     if (!recentNewsSection) {
       throw new Error('Expected recent news section container.');
     }
-    expect(within(recentNewsSection).getByText('N/A')).toBeInTheDocument();
+    expect(
+      within(recentNewsSection).getByText('No recent coverage found from the top mainstream outlets.')
+    ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /corporate source only/i })).not.toBeInTheDocument();
   });
 

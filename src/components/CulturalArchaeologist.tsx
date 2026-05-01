@@ -2022,7 +2022,7 @@ export default function CulturalArchaeologist() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
               <div className="relative flex flex-col w-full self-start">
                 <div className="relative flex items-center w-full">
-                  <Users className="absolute left-4 w-5 h-5 text-zinc-400" />
+                  <Users className="absolute left-4 top-4 w-5 h-5 text-zinc-400" />
                   <input
                     type="text"
                     value={audience}
@@ -2053,7 +2053,7 @@ export default function CulturalArchaeologist() {
               
               <div className="relative flex flex-col w-full self-start" ref={brandDropdownRef}>
                 <div className="relative flex items-center w-full bg-white border border-zinc-200 rounded-2xl text-zinc-900 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all shadow-sm text-sm min-h-[56px]">
-                  <Tag className="absolute left-4 w-5 h-5 text-zinc-400" />
+                  <Tag className="absolute left-4 top-4 w-5 h-5 text-zinc-400" />
                   <div className="w-full pl-12 pr-12 py-2 flex items-center gap-2 flex-wrap">
                     {normalizedBrands.map((brandChip, chipIndex) => (
                       <span
@@ -2202,8 +2202,8 @@ export default function CulturalArchaeologist() {
                 </AnimatePresence>
               </div>
 
-              <div className="relative w-full self-start">
-                <Target className="absolute left-4 w-5 h-5 text-zinc-400" />
+              <div className="relative flex items-center w-full self-start">
+                <Target className="absolute left-4 top-4 w-5 h-5 text-zinc-400" />
                 <input
                   type="text"
                   value={topicFocus}

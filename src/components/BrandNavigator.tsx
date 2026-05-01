@@ -12,6 +12,7 @@ import { generateBrandResearchMatrix, suggestBrands } from '../services/azure-op
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { isBrandNavigatorRoute } from '../services/navigation-routes';
 import { normalizeExternalHttpUrl, toSafeExternalHref } from '../services/external-links';
+import { isLikelyArticleUrl, isTopMainstreamNewsUrl } from '../services/news-outlets';
 import {
   BRAND_SUGGESTION_DEBOUNCE_MS,
   getLocalBrandSuggestions,
@@ -763,7 +764,7 @@ export default function BrandNavigator() {
         {
           const recentHeadlineLines = buildRecentHeadlines(brand).map((item) =>
             item.url
-              ? `${item.headline}${item.publishedAt ? ` (${new Date(item.publishedAt).toLocaleDateString()})` : ''}: ${item.url}`
+              ? `${item.headline}${item.outlet ? ` - ${item.outlet}` : ''}${item.publishedAt ? ` (${new Date(item.publishedAt).toLocaleDateString()})` : ''}: ${item.url}`
               : item.headline
           );
           return recentHeadlineLines.length > 0 ? recentHeadlineLines : ['N/A'];
@@ -1912,9 +1913,9 @@ type BrandResultEntry = {
   socialMediaChannels?: Array<{ channel?: string; url?: string }>;
   recentNews?: Array<
     string | {
-      headline?: string;
-      title?: string;
-      url?: string;
+      headline?: string | null;
+      title?: string | null;
+      url?: string | null;
       publishedAt?: string | null;
       date?: string | null;
       outlet?: string | null;
@@ -1946,44 +1947,83 @@ const SOCIAL_CHANNEL_HOSTNAMES: Record<string, string[]> = {
 
 const URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
 const MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
-const MAINSTREAM_NEWS_DOMAIN_PATTERNS = [
-  /reuters\.com$/i,
-  /apnews\.com$/i,
-  /nytimes\.com$/i,
-  /wsj\.com$/i,
-  /ft\.com$/i,
-  /bloomberg\.com$/i,
-  /bbc\.com$/i,
-  /bbc\.co\.uk$/i,
-  /cnn\.com$/i,
-  /nbcnews\.com$/i,
-  /abcnews\.go\.com$/i,
-  /cbsnews\.com$/i,
-  /usatoday\.com$/i,
-  /theguardian\.com$/i,
-  /forbes\.com$/i,
-  /fortune\.com$/i,
-  /businessinsider\.com$/i,
-  /washingtonpost\.com$/i,
-  /latimes\.com$/i,
-  /npr\.org$/i,
-];
-
-const isMainstreamNewsUrl = (url?: string): boolean => {
-  const safeUrl = normalizeExternalHttpUrl(url);
-  if (!safeUrl) return false;
-  try {
-    const hostname = new URL(safeUrl).hostname.toLowerCase();
-    return MAINSTREAM_NEWS_DOMAIN_PATTERNS.some((pattern) => pattern.test(hostname));
-  } catch {
-    return false;
-  }
-};
+const BRAND_TOKEN_STOPWORDS = new Set([
+  'the',
+  'and',
+  'of',
+  'inc',
+  'llc',
+  'ltd',
+  'co',
+  'corp',
+  'corporation',
+  'company',
+  'group',
+  'official',
+  'brand',
+]);
 
 const normalizeChannelKey = (channel?: string): string => {
   const normalized = (channel || '').trim().toLowerCase();
   if (normalized === 'twitter') return 'x';
   return normalized;
+};
+
+const normalizeSocialPath = (url: string): string[] => {
+  try {
+    const pathname = new URL(url).pathname || '';
+    return pathname.split('/').map((segment) => segment.trim().toLowerCase()).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const isLikelySocialProfilePath = (channel: string, url: string): boolean => {
+  const segments = normalizeSocialPath(url);
+  if (segments.length === 0) return false;
+
+  const first = segments[0];
+  const second = segments[1] || '';
+
+  if (channel === 'linkedin') {
+    return first === 'company' || first === 'school' || first === 'showcase';
+  }
+  if (channel === 'youtube') {
+    return first.startsWith('@') || first === 'channel' || first === 'c' || first === 'user';
+  }
+  if (channel === 'reddit') {
+    return first === 'r' || first === 'user' || first === 'u';
+  }
+  if (channel === 'facebook') {
+    return !['home.php', 'watch', 'marketplace', 'gaming', 'groups'].includes(first);
+  }
+  if (channel === 'x' || channel === 'instagram' || channel === 'tiktok' || channel === 'threads' || channel === 'pinterest' || channel === 'snapchat') {
+    return !['home', 'explore', 'search', 'i', 'messages', 'about', 'discover'].includes(first) && first !== '';
+  }
+
+  return first !== '' || second !== '';
+};
+
+const extractBrandTokens = (brandName: string): { compact: string; tokens: string[] } => {
+  const normalized = (brandName || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+  const tokens = normalized
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !BRAND_TOKEN_STOPWORDS.has(token));
+  const compact = normalized.replace(/[^a-z0-9]/g, '');
+  return { compact, tokens };
+};
+
+const socialUrlMatchesBrand = (url: string, brandName: string): boolean => {
+  const segments = normalizeSocialPath(url);
+  const slug = segments.join(' ').replace(/[^a-z0-9]/g, '');
+  if (!slug) return false;
+
+  const { compact, tokens } = extractBrandTokens(brandName);
+  if (!compact && tokens.length === 0) return true;
+
+  if (compact && slug.includes(compact)) return true;
+  return tokens.some((token) => token.length >= 4 && slug.includes(token));
 };
 
 const urlMatchesChannel = (channel?: string, url?: string): boolean => {
@@ -2035,6 +2075,27 @@ const sanitizeSocialChannels = (
       return;
     }
 
+    const normalizedChannel = normalizeChannelKey(channelLabel);
+    if (!isLikelySocialProfilePath(normalizedChannel, safeUrl)) {
+      console.log('[BrandNavigator] Dropping social media link that is not a profile/page URL.', {
+        brandName,
+        channel: channelLabel,
+        safeUrl,
+        index,
+      });
+      return;
+    }
+
+    if (!socialUrlMatchesBrand(safeUrl, brandName)) {
+      console.log('[BrandNavigator] Dropping social media link that does not appear to match the brand page.', {
+        brandName,
+        channel: channelLabel,
+        safeUrl,
+        index,
+      });
+      return;
+    }
+
     const dedupeKey = `${channelLabel.toLowerCase()}|${safeUrl.toLowerCase()}`;
     if (seen.has(dedupeKey)) {
       console.log('[BrandNavigator] Skipping duplicate social media link.', {
@@ -2053,7 +2114,14 @@ const sanitizeSocialChannels = (
 };
 
 const parseHeadlineFromNewsItem = (
-  newsItem: string | { headline?: string; title?: string; url?: string; publishedAt?: string | null; date?: string | null; outlet?: string | null }
+  newsItem: string | {
+    headline?: string | null;
+    title?: string | null;
+    url?: string | null;
+    publishedAt?: string | null;
+    date?: string | null;
+    outlet?: string | null;
+  }
 ): ParsedHeadline | null => {
   if (typeof newsItem !== 'string') {
     const objectHeadline = (newsItem.headline || newsItem.title || '').trim();
@@ -2107,15 +2175,15 @@ const buildRecentHeadlines = (brandResult: BrandResultEntry): ParsedHeadline[] =
     .filter((item): item is ParsedHeadline => Boolean(item));
   const deduped: ParsedHeadline[] = [];
   const seen = new Set<string>();
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
   fromRecentNews.forEach((item) => {
-    if (!item.url || !isMainstreamNewsUrl(item.url)) {
-      console.log('[BrandNavigator] Dropping non-mainstream or URL-missing recent news item.', {
-        headline: item.headline,
-        url: item.url,
-      });
-      return;
-    }
+    if (!item.url || !isTopMainstreamNewsUrl(item.url)) return;
+    if (!isLikelyArticleUrl(item.url)) return;
+    if (!item.publishedAt) return;
+    const publishedTime = new Date(item.publishedAt).getTime();
+    if (Number.isNaN(publishedTime) || publishedTime < sixMonthsAgo.getTime()) return;
 
     const dedupeKey = `${item.headline.toLowerCase()}|${(item.url || '').toLowerCase()}`;
     if (seen.has(dedupeKey)) return;
@@ -2163,7 +2231,7 @@ function BrandResultsGrid({
   onAudienceDeepDive: (audienceLabel: string, brandName: string) => void;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {results.map((brandResult, brandIndex) => (
         <BrandResultCard
           key={`${brandResult.brandName || 'brand'}-${brandIndex}`}
@@ -2198,44 +2266,44 @@ function BrandResultCard({
   });
 
   return (
-    <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
-      <h3 className="text-2xl font-bold text-zinc-900 mb-4">{brandName}</h3>
+    <section className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-sm">
+      <h3 className="text-2xl font-bold text-zinc-900 mb-3">{brandName}</h3>
 
       <div
         data-testid="brand-result-sections-layout"
-        className="columns-1 lg:columns-2 gap-3 text-sm text-zinc-700 [column-fill:balance]"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm text-zinc-700 items-start"
       >
-        <BrandCriteriaSection title="High-level summary" className="mb-3 break-inside-avoid lg:[column-span:all]">
+        <BrandCriteriaSection title="High-level summary" className="lg:col-span-2">
           <p>{brandResult.highLevelSummary || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand mission" className="mb-3 break-inside-avoid">
+        <BrandCriteriaSection title="Brand mission">
           <p>{brandResult.brandMission || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand positioning" className="mb-3 break-inside-avoid">
+        <BrandCriteriaSection title="Brand positioning" className="lg:col-span-2">
           <div className="space-y-2">
-            <BrandResultInlineField label="Taglines" value={(positioning.taglines || []).join(' | ')} />
-            <BrandResultInlineField label="Key messages and claims" value={(positioning.keyMessagesAndClaims || []).join(' | ')} />
+            <BrandResultLabeledBulletList label="Taglines" items={positioning.taglines || []} />
+            <BrandResultLabeledBulletList label="Key messages and claims" items={positioning.keyMessagesAndClaims || []} />
             <BrandResultInlineField label="Value proposition" value={positioning.valueProposition} />
             <BrandResultInlineField label="Voice and tone" value={positioning.voiceAndTone} />
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key offerings/products/services" className="mb-3 break-inside-avoid">
-          <p>{(brandResult.keyOfferingsProductsServices || []).join(' | ') || 'N/A'}</p>
+        <BrandCriteriaSection title="Key offerings/products/services">
+          <BrandResultBulletList items={brandResult.keyOfferingsProductsServices || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Strategic moats (strengths)" className="mb-3 break-inside-avoid">
-          <p>{(brandResult.strategicMoatsStrengths || []).join(' | ') || 'N/A'}</p>
+        <BrandCriteriaSection title="Strategic moats (strengths)">
+          <BrandResultBulletList items={brandResult.strategicMoatsStrengths || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Potential threats (weaknesses)" className="mb-3 break-inside-avoid">
-          <p>{(brandResult.potentialThreatsWeaknesses || []).join(' | ') || 'N/A'}</p>
+        <BrandCriteriaSection title="Potential threats (weaknesses)">
+          <BrandResultBulletList items={brandResult.potentialThreatsWeaknesses || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Target audiences" className="mb-3 break-inside-avoid lg:[column-span:all]">
-          <div className="space-y-3">
+        <BrandCriteriaSection title="Target audiences" className="lg:col-span-2">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
             {(brandResult.targetAudiences || []).map((aud, audIndex) => (
               <TargetAudienceCard
                 key={`${brandName}-aud-${audIndex}`}
@@ -2249,15 +2317,15 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent campaigns" className="mb-3 break-inside-avoid">
-          <p>{(brandResult.recentCampaigns || []).join(' | ') || 'N/A'}</p>
+        <BrandCriteriaSection title="Recent campaigns">
+          <BrandResultBulletList items={brandResult.recentCampaigns || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key marketing channels" className="mb-3 break-inside-avoid">
-          <p>{(brandResult.keyMarketingChannels || []).join(' | ') || 'N/A'}</p>
+        <BrandCriteriaSection title="Key marketing channels">
+          <BrandResultBulletList items={brandResult.keyMarketingChannels || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Social media channels" className="mb-3 break-inside-avoid">
+        <BrandCriteriaSection title="Social media channels">
           <div className="flex flex-wrap gap-2">
             {sanitizedSocialChannels.map((channel, channelIndex) => (
               <a
@@ -2275,7 +2343,7 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent news" className="mb-3 break-inside-avoid">
+        <BrandCriteriaSection title="Recent news" className="lg:col-span-2">
           <ul className="space-y-1">
             {recentNewsItems.length > 0 ? (
               recentNewsItems.map((item, idx) => (
@@ -2291,6 +2359,11 @@ function BrandResultCard({
                       <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
                       <span>
                         {item.headline}
+                        {item.outlet ? (
+                          <span className="ml-1 text-[11px] text-zinc-600">
+                            {item.outlet}
+                          </span>
+                        ) : null}
                         {item.publishedAt ? (
                           <span className="ml-1 text-[11px] text-zinc-500">
                             ({new Date(item.publishedAt).toLocaleDateString()})
@@ -2304,7 +2377,7 @@ function BrandResultCard({
                 </li>
               ))
             ) : (
-              <li className="text-zinc-500">N/A</li>
+              <li className="text-zinc-500">No recent coverage found from the top mainstream outlets.</li>
             )}
           </ul>
         </BrandCriteriaSection>
@@ -2328,12 +2401,12 @@ function TargetAudienceCard({
 }) {
   const audienceLabel = audience.audience || 'N/A';
   return (
-    <div className="rounded-2xl border border-zinc-200 p-4 bg-zinc-50/60">
+    <div className="rounded-2xl border border-zinc-200 p-4 bg-zinc-50/60 h-fit self-start">
       <BrandResultInlineField label="Audience" value={audienceLabel} />
       <BrandResultInlineField label="Priority of audience" value={audience.priority} />
       <BrandResultInlineField label="Role to consumers" value={audience.inferredRoleToConsumers} />
-      <BrandResultInlineField label="Functional benefits" value={(audience.functionalBenefits || []).join(' | ')} />
-      <BrandResultInlineField label="Emotional benefits" value={(audience.emotionalBenefits || []).join(' | ')} />
+      <BrandResultLabeledBulletList label="Functional benefits" items={audience.functionalBenefits || []} />
+      <BrandResultLabeledBulletList label="Emotional benefits" items={audience.emotionalBenefits || []} />
       <button
         type="button"
         data-testid={`deep-dive-audience-${brandIndex}-${audienceIndex}`}
@@ -2372,5 +2445,29 @@ function BrandResultInlineField({ label, value }: { label: string; value?: strin
     <p>
       <span className="font-medium text-zinc-900">{label}:</span> {value || 'N/A'}
     </p>
+  );
+}
+
+function BrandResultBulletList({ items }: { items: string[] }) {
+  const normalizedItems = (items || []).map((item) => (item || '').trim()).filter(Boolean);
+  if (normalizedItems.length === 0) {
+    return <p>N/A</p>;
+  }
+
+  return (
+    <ul className="list-disc pl-5 space-y-1">
+      {normalizedItems.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function BrandResultLabeledBulletList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <p className="font-medium text-zinc-900">{label}:</p>
+      <BrandResultBulletList items={items} />
+    </div>
   );
 }
