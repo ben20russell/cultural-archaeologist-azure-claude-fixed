@@ -6,6 +6,7 @@ const {
   generateBrandResearchMatrix,
   suggestBrands,
   askMatrixQuestion,
+  askBrandNavigatorQuestion,
   generateDeepDive,
   generateDeepDivesBatch,
   supabaseFrom,
@@ -15,6 +16,7 @@ const {
   generateBrandResearchMatrix: vi.fn(),
   suggestBrands: vi.fn(),
   askMatrixQuestion: vi.fn(),
+  askBrandNavigatorQuestion: vi.fn(),
   generateDeepDive: vi.fn(),
   generateDeepDivesBatch: vi.fn(),
   supabaseFrom: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('../services/azure-openai', () => ({
   generateBrandResearchMatrix,
   suggestBrands,
   askMatrixQuestion,
+  askBrandNavigatorQuestion,
   generateDeepDive,
   generateDeepDivesBatch,
 }));
@@ -77,6 +80,7 @@ describe('BrandNavigator', () => {
     suggestBrands.mockResolvedValue(['Nike', 'Adidas']);
     generateBrandResearchMatrix.mockResolvedValue(emptyMatrix);
     askMatrixQuestion.mockResolvedValue({ answer: 'ok', relevantInsights: [] });
+    askBrandNavigatorQuestion.mockResolvedValue({ answer: 'web-backed answer', relevantSections: [], webHighlights: [] });
     generateDeepDive.mockResolvedValue({});
     generateDeepDivesBatch.mockResolvedValue([]);
   });
@@ -277,6 +281,103 @@ describe('BrandNavigator', () => {
     expect(orderedLinks[1]).toHaveTextContent('Older sustainability update');
   });
 
+  it('keeps valid mainstream recent news links even when publishedAt is missing', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [
+            {
+              headline: 'Patagonia announces new supply-chain commitments',
+              url: 'https://www.reuters.com/world/us/patagonia-announces-new-supply-chain-commitments/',
+              publishedAt: null,
+            },
+          ],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    const link = await screen.findByRole('link', { name: /patagonia announces new supply-chain commitments/i });
+    expect(link).toHaveAttribute('href', 'https://www.reuters.com/world/us/patagonia-announces-new-supply-chain-commitments/');
+  });
+
+  it('includes valid non-top-list news outlets when they have article coverage', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [
+            {
+              headline: 'Patagonia expands retail footprint',
+              url: 'https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint',
+              publishedAt: '2026-03-10T10:00:00.000Z',
+              outlet: 'Fox News',
+            },
+          ],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    const link = await screen.findByRole('link', { name: /patagonia expands retail footprint/i });
+    expect(link).toHaveAttribute('href', 'https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint');
+  });
+
   it('filters out social media links that do not match the declared channel', async () => {
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',
@@ -414,9 +515,66 @@ describe('BrandNavigator', () => {
       throw new Error('Expected recent news section container.');
     }
     expect(
-      within(recentNewsSection).getByText('No recent coverage found from the top mainstream outlets or brand press pages.')
+      within(recentNewsSection).getByText('No recent coverage found from news outlets or brand press pages.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /corporate source only/i })).not.toBeInTheDocument();
+  });
+
+  it('supports Brand Navigator follow-up AI search and highlights grounded sections', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    askBrandNavigatorQuestion.mockResolvedValue({
+      answer: 'Patagonia is leaning into repair-led circularity messaging.',
+      relevantSections: ['brandMission'],
+      webHighlights: ['Reuters: Patagonia expands repair services in 2026.'],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    fireEvent.change(await screen.findByTestId('brand-qa-input'), {
+      target: { value: 'What is their current strategic narrative?' },
+    });
+    fireEvent.click(screen.getByTestId('brand-qa-submit'));
+
+    expect(await screen.findByText(/repair-led circularity messaging/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Reuters: Patagonia expands repair services in 2026\./i)).toBeInTheDocument();
+    expect(screen.getByText('Brand Mission')).toBeInTheDocument();
+
+    const missionSection = screen.getByTestId('brand-result-section-brand-mission');
+    expect(missionSection.className).toContain('ring-2');
+    expect(askBrandNavigatorQuestion).toHaveBeenCalled();
   });
 
   it('saves Brand Navigator results to the BrandNavigator table with a custom_name', async () => {

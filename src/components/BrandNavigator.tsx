@@ -8,11 +8,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Palette, ArrowLeft } from 'lucide-react';
 import { BrandResearchMatrix, UploadedFile } from '../services/azure-openai';
-import { generateBrandResearchMatrix, suggestBrands } from '../services/azure-openai';
+import { askBrandNavigatorQuestion, generateBrandResearchMatrix, suggestBrands } from '../services/azure-openai';
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { isBrandNavigatorRoute } from '../services/navigation-routes';
 import { normalizeExternalHttpUrl, toSafeExternalHref } from '../services/external-links';
-import { isLikelyArticleUrl, isTopMainstreamNewsUrl } from '../services/news-outlets';
+import { isLikelyArticleUrl } from '../services/news-outlets';
 import {
   BRAND_SUGGESTION_DEBOUNCE_MS,
   getLocalBrandSuggestions,
@@ -194,6 +194,11 @@ export default function BrandNavigator() {
   const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[], hasUploadedDocuments?: boolean} | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [brandQuestion, setBrandQuestion] = useState('');
+  const [brandAnswer, setBrandAnswer] = useState('');
+  const [isAskingBrandQuestion, setIsAskingBrandQuestion] = useState(false);
+  const [highlightedBrandSections, setHighlightedBrandSections] = useState<BrandResultSectionKey[]>([]);
+  const [webHighlights, setWebHighlights] = useState<string[]>([]);
   const normalizedBrands = useMemo(() => normalizeBrandTokens(selectedBrands), [selectedBrands]);
   const brandInputQuery = brandInput.trim();
   const [isResearchControlsMinimized, setIsResearchControlsMinimized] = useState(false);
@@ -550,8 +555,34 @@ export default function BrandNavigator() {
     setMatrix(null);
     setMatrixMeta(null);
     setError(null);
+    setBrandQuestion('');
+    setBrandAnswer('');
+    setIsAskingBrandQuestion(false);
+    setHighlightedBrandSections([]);
+    setWebHighlights([]);
     setIsResearchControlsMinimized(false);
     setShowValidation(false);
+  };
+
+  const handleAskBrandQuestion = async () => {
+    if (!matrix || !brandQuestion.trim() || isAskingBrandQuestion) return;
+
+    setIsAskingBrandQuestion(true);
+    try {
+      const response = await askBrandNavigatorQuestion(matrix, brandQuestion, {
+        audience: matrixMeta?.audience || audience,
+        brand: matrixMeta?.brand || selectedBrands.join(', '),
+        topicFocus: matrixMeta?.topicFocus || topicFocus,
+      });
+      setBrandAnswer(response.answer || '');
+      setHighlightedBrandSections((response.relevantSections || []).filter(Boolean) as BrandResultSectionKey[]);
+      setWebHighlights((response.webHighlights || []).filter((item) => (item || '').trim().length > 0));
+    } catch (err) {
+      console.error('[BrandNavigator] Failed to ask follow-up question.', err);
+      setToast('Unable to complete that search right now. Please try again.');
+    } finally {
+      setIsAskingBrandQuestion(false);
+    }
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -1796,9 +1827,69 @@ export default function BrandNavigator() {
                 <p className="text-zinc-500">Generated on {new Date().toLocaleDateString()}</p>
               </div>
 
+              {isBrandResultsMode && (
+                <div className="mb-10 bg-indigo-50 rounded-3xl p-6 md:p-8 border border-indigo-100 shadow-sm no-print">
+                  <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                    <Search className="w-6 h-6" /> Ask Brand Navigator
+                  </h3>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      data-testid="brand-qa-input"
+                      type="text"
+                      value={brandQuestion}
+                      onChange={(e) => setBrandQuestion(e.target.value)}
+                      placeholder="Ask a follow-up question and run a comprehensive web-backed search"
+                      className="flex-1 px-5 py-4 rounded-2xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-zinc-900 shadow-sm text-sm"
+                      onKeyDown={(e) => e.key === 'Enter' && handleAskBrandQuestion()}
+                      disabled={isAskingBrandQuestion}
+                    />
+                    <button
+                      data-testid="brand-qa-submit"
+                      onClick={handleAskBrandQuestion}
+                      disabled={isAskingBrandQuestion || !brandQuestion.trim()}
+                      className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-medium hover:bg-indigo-700 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:ring-offset-2 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none transition-all flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      {isAskingBrandQuestion ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Search'}
+                    </button>
+                  </div>
+                  {brandAnswer && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 p-6 bg-white rounded-2xl border border-indigo-100 text-zinc-700 shadow-sm leading-relaxed"
+                    >
+                      <p className="text-zinc-800 text-[15px] leading-7 whitespace-pre-wrap">{brandAnswer}</p>
+                      {highlightedBrandSections.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Located In Report Sections</p>
+                          <div className="flex flex-wrap gap-2">
+                            {highlightedBrandSections.map((section) => (
+                              <span key={`highlight-section-${section}`} className="px-2.5 py-1 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold">
+                                {sectionTitleMap[section]}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {webHighlights.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Web Search Highlights</p>
+                          <ul className="list-disc pl-5 space-y-1 text-sm text-zinc-700">
+                            {webHighlights.map((highlight, idx) => (
+                              <li key={`web-highlight-${idx}`}>{highlight}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
               {isBrandResultsMode ? (
                 <BrandResultsGrid
                   results={brandResults}
+                  highlightedSections={highlightedBrandSections}
                   sectionTitleMap={sectionTitleMap}
                   sectionLinesForBrand={sectionLinesForBrand}
                   onAudienceDeepDive={(audienceLabel, brandName) => {
@@ -2316,11 +2407,12 @@ const buildRecentHeadlines = (brandResult: BrandResultEntry): ParsedHeadline[] =
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
   fromRecentNews.forEach((item) => {
-    if (!item.url || !isTopMainstreamNewsUrl(item.url)) return;
+    if (!item.url) return;
     if (!isLikelyArticleUrl(item.url)) return;
-    if (!item.publishedAt) return;
-    const publishedTime = new Date(item.publishedAt).getTime();
-    if (Number.isNaN(publishedTime) || publishedTime < sixMonthsAgo.getTime()) return;
+    if (item.publishedAt) {
+      const publishedTime = new Date(item.publishedAt).getTime();
+      if (Number.isNaN(publishedTime) || publishedTime < sixMonthsAgo.getTime()) return;
+    }
 
     const dedupeKey = `${item.headline.toLowerCase()}|${(item.url || '').toLowerCase()}`;
     if (seen.has(dedupeKey)) return;
@@ -2362,11 +2454,13 @@ const sanitizeBrandResearchMatrix = (rawMatrix: BrandResearchMatrix): BrandResea
 
 function BrandResultsGrid({
   results,
+  highlightedSections,
   sectionTitleMap,
   sectionLinesForBrand,
   onAudienceDeepDive,
 }: {
   results: BrandResultEntry[];
+  highlightedSections: BrandResultSectionKey[];
   sectionTitleMap: Record<BrandResultSectionKey, string>;
   sectionLinesForBrand: (brand: BrandResultEntry, key: BrandResultSectionKey) => string[];
   onAudienceDeepDive: (audienceLabel: string, brandName: string) => void;
@@ -2440,7 +2534,7 @@ function BrandResultsGrid({
             <button
               type="button"
               onClick={() => setCompareSection(null)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 text-zinc-600 text-sm hover:bg-zinc-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-200 text-zinc-600 text-sm hover:bg-zinc-50"
             >
               <span>Close Compare</span>
               <X className="w-3.5 h-3.5" />
@@ -2485,6 +2579,7 @@ function BrandResultsGrid({
           key={`${brandResult.brandName || 'brand'}-${brandIndex}`}
           brandResult={brandResult}
           brandIndex={brandIndex}
+          highlightedSections={highlightedSections}
           canCompareAcrossBrands={isMultiBrandCompareEnabled}
           onRequestCompareAcrossBrands={openComparePopup}
           onAudienceDeepDive={onAudienceDeepDive}
@@ -2503,9 +2598,9 @@ function BrandResultsGrid({
                 setCompareSection(comparePopup.section);
                 setComparePopup(null);
               }}
-              className="w-full inline-flex items-center gap-2 px-2 py-2 text-sm text-zinc-700 hover:bg-zinc-50 rounded-lg"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 rounded-lg"
             >
-              <CompareAcrossBrandsIcon className="w-4 h-4" /> Compare Across Brands
+              Compare Across Brands
             </button>
           </div>
         </>
@@ -2517,12 +2612,14 @@ function BrandResultsGrid({
 function BrandResultCard({
   brandResult,
   brandIndex,
+  highlightedSections,
   canCompareAcrossBrands,
   onRequestCompareAcrossBrands,
   onAudienceDeepDive,
 }: {
   brandResult: BrandResultEntry;
   brandIndex: number;
+  highlightedSections: BrandResultSectionKey[];
   canCompareAcrossBrands: boolean;
   onRequestCompareAcrossBrands: (event: React.MouseEvent<HTMLElement>, section: BrandResultSectionKey) => void;
   onAudienceDeepDive: (audienceLabel: string, brandName: string) => void;
@@ -2552,15 +2649,15 @@ function BrandResultCard({
         data-testid="brand-result-sections-layout"
         className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-zinc-700 items-start"
       >
-        <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
+        <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <p>{brandResult.highLevelSummary || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand mission" sectionKey="brandMission" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Brand mission" sectionKey="brandMission" highlighted={highlightedSections.includes('brandMission')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <p>{brandResult.brandMission || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
+        <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" highlighted={highlightedSections.includes('brandPositioning')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <div className="space-y-2">
             <BrandResultLabeledBulletList label="Taglines" items={positioning.taglines || []} />
             <BrandResultLabeledBulletList label="Key messages and claims" items={positioning.keyMessagesAndClaims || []} />
@@ -2569,19 +2666,19 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key offerings/products/services" sectionKey="keyOfferingsProductsServices" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Key offerings/products/services" sectionKey="keyOfferingsProductsServices" highlighted={highlightedSections.includes('keyOfferingsProductsServices')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <BrandResultBulletList items={brandResult.keyOfferingsProductsServices || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Strategic moats (strengths)" sectionKey="strategicMoatsStrengths" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Strategic moats (strengths)" sectionKey="strategicMoatsStrengths" highlighted={highlightedSections.includes('strategicMoatsStrengths')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <BrandResultBulletList items={brandResult.strategicMoatsStrengths || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Potential threats (weaknesses)" sectionKey="potentialThreatsWeaknesses" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Potential threats (weaknesses)" sectionKey="potentialThreatsWeaknesses" highlighted={highlightedSections.includes('potentialThreatsWeaknesses')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <BrandResultBulletList items={brandResult.potentialThreatsWeaknesses || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Target audiences" sectionKey="targetAudiences" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
+        <BrandCriteriaSection title="Target audiences" sectionKey="targetAudiences" highlighted={highlightedSections.includes('targetAudiences')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
             {(brandResult.targetAudiences || []).map((aud, audIndex) => (
               <TargetAudienceCard
@@ -2596,15 +2693,15 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent campaigns" sectionKey="recentCampaigns" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Recent campaigns" sectionKey="recentCampaigns" highlighted={highlightedSections.includes('recentCampaigns')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <BrandResultBulletList items={brandResult.recentCampaigns || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Key marketing channels" sectionKey="keyMarketingChannels" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Key marketing channels" sectionKey="keyMarketingChannels" highlighted={highlightedSections.includes('keyMarketingChannels')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <BrandResultBulletList items={brandResult.keyMarketingChannels || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Social media channels" sectionKey="socialMediaChannels" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
+        <BrandCriteriaSection title="Social media channels" sectionKey="socialMediaChannels" highlighted={highlightedSections.includes('socialMediaChannels')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
           <div className="flex flex-wrap gap-2">
             {sanitizedSocialChannels.map((channel, channelIndex) => (
               <a
@@ -2622,7 +2719,7 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent news" sectionKey="recentNews" canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
+        <BrandCriteriaSection title="Recent news" sectionKey="recentNews" highlighted={highlightedSections.includes('recentNews')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <ul className="space-y-1">
             {displayNewsItems.length > 0 ? (
               displayNewsItems.map((item, idx) => (
@@ -2656,7 +2753,7 @@ function BrandResultCard({
                 </li>
               ))
             ) : (
-              <li className="text-zinc-500">No recent coverage found from the top mainstream outlets or brand press pages.</li>
+              <li className="text-zinc-500">No recent coverage found from news outlets or brand press pages.</li>
             )}
           </ul>
         </BrandCriteriaSection>
@@ -2701,6 +2798,7 @@ function TargetAudienceCard({
 function BrandCriteriaSection({
   title,
   sectionKey,
+  highlighted = false,
   canCompareAcrossBrands = false,
   onRequestCompareAcrossBrands,
   className = '',
@@ -2708,6 +2806,7 @@ function BrandCriteriaSection({
 }: {
   title: string;
   sectionKey?: BrandResultSectionKey;
+  highlighted?: boolean;
   canCompareAcrossBrands?: boolean;
   onRequestCompareAcrossBrands?: (event: React.MouseEvent<HTMLElement>, section: BrandResultSectionKey) => void;
   className?: string;
@@ -2722,26 +2821,18 @@ function BrandCriteriaSection({
         if (!compareEnabled || !sectionKey || !onRequestCompareAcrossBrands) return;
         onRequestCompareAcrossBrands(event, sectionKey);
       }}
-      className={`rounded-2xl border border-zinc-200 bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
+      className={`rounded-2xl border bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start ${highlighted ? 'border-indigo-300 ring-2 ring-indigo-200/70' : 'border-zinc-200'} ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
     >
-      <h4 className="text-sm font-semibold text-zinc-900 mb-2 uppercase tracking-wider inline-flex items-center gap-2">
+      <h4 className="text-sm font-semibold text-zinc-900 mb-3 uppercase tracking-wider inline-flex items-center gap-3">
         <span>{title}</span>
-        {compareEnabled ? <CompareAcrossBrandsIcon className="w-3.5 h-3.5 text-zinc-400" /> : null}
+        {compareEnabled ? (
+          <span className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 normal-case tracking-normal">
+            Compare
+          </span>
+        ) : null}
       </h4>
       {children}
     </div>
-  );
-}
-
-function CompareAcrossBrandsIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`inline-flex items-center justify-center rounded-[4px] border border-current font-bold leading-none tracking-tight ${className}`}
-      style={{ fontSize: '0.56rem' }}
-    >
-      VS
-    </span>
   );
 }
 

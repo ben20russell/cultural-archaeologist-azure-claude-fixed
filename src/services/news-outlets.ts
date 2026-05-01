@@ -55,6 +55,31 @@ export const TOP_MAINSTREAM_NEWS_HOSTS: string[] = [
   'elpais.com',
 ];
 
+// Secondary mainstream fallback list.
+// Used only when strict top-50 filtering returns no items.
+export const SECONDARY_MAINSTREAM_NEWS_HOSTS: string[] = [
+  'foxnews.com',
+  'msn.com',
+  'yahoo.com',
+  'yahoo.co.jp',
+  'usnews.com',
+  'news.com.au',
+  'nationalpost.com',
+  'torontosun.com',
+  'suntimes.com',
+  'denverpost.com',
+  'sfchronicle.com',
+  'bostonglobe.com',
+  'seattletimes.com',
+  'philly.com',
+  'nypost.com',
+  'dailymail.co.uk',
+  'mirror.co.uk',
+  'edition.cnn.com',
+  'today.com',
+  'skift.com',
+];
+
 const matchesAllowedHostname = (hostname: string, allowed: string): boolean => {
   return hostname === allowed || hostname.endsWith(`.${allowed}`);
 };
@@ -66,6 +91,21 @@ export const isTopMainstreamNewsUrl = (url?: string | null): boolean => {
   try {
     const hostname = new URL(safeUrl).hostname.toLowerCase();
     return TOP_MAINSTREAM_NEWS_HOSTS.some((allowed) => matchesAllowedHostname(hostname, allowed));
+  } catch {
+    return false;
+  }
+};
+
+export const isMainstreamNewsUrl = (url?: string | null): boolean => {
+  const safeUrl = normalizeExternalHttpUrl(url);
+  if (!safeUrl) return false;
+
+  try {
+    const hostname = new URL(safeUrl).hostname.toLowerCase();
+    return (
+      TOP_MAINSTREAM_NEWS_HOSTS.some((allowed) => matchesAllowedHostname(hostname, allowed)) ||
+      SECONDARY_MAINSTREAM_NEWS_HOSTS.some((allowed) => matchesAllowedHostname(hostname, allowed))
+    );
   } catch {
     return false;
   }

@@ -157,7 +157,12 @@ describe('BrandDeepDivePage', () => {
 
     await screen.findByText(/Ask About This Analysis/i);
 
-    fireEvent.click(screen.getAllByText('Typography')[0]);
+    const typographyHeading = screen.getAllByText('Typography')[0];
+    const typographyCard = typographyHeading.closest('.cursor-pointer') as HTMLElement | null;
+    if (!typographyCard) {
+      throw new Error('Expected clickable typography card.');
+    }
+    fireEvent.click(typographyCard);
 
     const compareButton = await screen.findByRole('button', { name: /compare across brands/i });
     fireEvent.click(compareButton);

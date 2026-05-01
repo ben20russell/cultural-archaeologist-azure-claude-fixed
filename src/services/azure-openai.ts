@@ -45,7 +45,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { buildBrandWebsiteContextPrompt, fetchBrandWebsiteContext } from './brand-web-context';
 import { normalizeExternalHttpUrl, sanitizeApiBaseUrl } from './external-links';
-import { isLikelyArticleUrl, isTopMainstreamNewsUrl, TOP_MAINSTREAM_NEWS_HOSTS } from './news-outlets';
+import { isLikelyArticleUrl } from './news-outlets';
 
 export interface MatrixItem {
   text: string;
@@ -1585,6 +1585,26 @@ const BrandDeepDiveAnswerSchema = z.object({
   answer: z.string(),
 });
 
+const BrandNavigatorSectionKeySchema = z.enum([
+  'highLevelSummary',
+  'brandMission',
+  'brandPositioning',
+  'keyOfferingsProductsServices',
+  'strategicMoatsStrengths',
+  'potentialThreatsWeaknesses',
+  'targetAudiences',
+  'recentCampaigns',
+  'keyMarketingChannels',
+  'socialMediaChannels',
+  'recentNews',
+]);
+
+const BrandNavigatorAnswerSchema = z.object({
+  answer: z.string(),
+  relevantSections: z.array(BrandNavigatorSectionKeySchema),
+  webHighlights: z.array(z.string()),
+});
+
 export type BrandDeepDivePromptResult =
   | { mode: "answer"; answer: string }
   | { mode: "rescan"; answer: string; report: BrandDeepDiveReport };
@@ -1654,6 +1674,62 @@ export async function askBrandDeepDiveQuestion(
       },
     ],
     qualityGate: (result) => !isThinStructuredPayload(result),
+  });
+
+  updateSessionBrief('brand-qa', parsed);
+  return parsed;
+}
+
+export async function askBrandNavigatorQuestion(
+  report: BrandResearchMatrix,
+  question: string,
+  context?: { audience?: string; brand?: string; topicFocus?: string }
+): Promise<{
+  answer: string;
+  relevantSections: Array<
+    | 'highLevelSummary'
+    | 'brandMission'
+    | 'brandPositioning'
+    | 'keyOfferingsProductsServices'
+    | 'strategicMoatsStrengths'
+    | 'potentialThreatsWeaknesses'
+    | 'targetAudiences'
+    | 'recentCampaigns'
+    | 'keyMarketingChannels'
+    | 'socialMediaChannels'
+    | 'recentNews'
+  >;
+  webHighlights: string[];
+}> {
+  const contextParts = [
+    context?.audience ? `Audience: ${context.audience}` : '',
+    context?.brand ? `Brands: ${context.brand}` : '',
+    context?.topicFocus ? `Topic Focus: ${context.topicFocus}` : '',
+  ].filter(Boolean);
+  const searchTopic = `${contextParts.join(' | ')} | Question: ${question}`.trim();
+  const evidenceDigest = await gatherEvidenceForTopic(searchTopic, 'brand-qa');
+
+  const parsed = await runStructuredCall({
+    schema: BrandNavigatorAnswerSchema,
+    schemaName: 'brand_navigator_answer',
+    mode: 'brand-qa',
+    outputType: 'analysis',
+    messages: [
+      {
+        role: 'system',
+        content: composeSystemPrompt(
+          'You are an expert brand strategist. Answer using the provided Brand Navigator report plus web evidence digest. Cite where the answer is grounded by selecting relevant report sections and short web highlights.',
+          'brand-qa',
+        ),
+      },
+      {
+        role: 'user',
+        content: `Brand Navigator Report Data:\n${JSON.stringify(report)}\n\nWeb Evidence Digest:\n${evidenceDigest}\n\nQuestion: "${question}"\n\nReturn:\n1) answer: concise but complete\n2) relevantSections: list of section keys where answer is grounded\n3) webHighlights: 2-5 short bullet-sized highlights from web evidence`,
+      },
+    ],
+    qualityGate: (result) =>
+      !isThinStructuredPayload(result) &&
+      Array.isArray(result.relevantSections),
   });
 
   updateSessionBrief('brand-qa', parsed);
@@ -2160,15 +2236,14 @@ Requirements:
   8) recentCampaigns
   9) keyMarketingChannels
   10) socialMediaChannels with channel and full URL
-  11) recentNews as actual recent brand/company article headlines from major mainstream media outlets, each with:
+  11) recentNews as actual recent brand/company article headlines from credible news outlets, each with:
      - headline
      - full article URL
      - publishedAt (ISO date if available)
      - outlet
 - Include at least 3 recentNews items per brand when credible coverage exists.
-- Only include recentNews items published within the last 6 months.
+- Prefer recentNews items published within the last 6 months.
 - recentNews must be ordered most recent first.
-- For recentNews, only use this strict top-50 mainstream media allowlist (domains): ${TOP_MAINSTREAM_NEWS_HOSTS.join(', ')}.
 - Keep entries concise and specific (no vague filler).
 - Provide sources at both the per-brand level and global level.
 
@@ -2214,19 +2289,17 @@ function filterRecentNewsToTopMainstream(report: BrandResearchMatrix): BrandRese
       const publishedAt = normalizeIsoDate(normalizedCandidate.publishedAt);
       const outlet = (normalizedCandidate.outlet || '').trim() || null;
 
-      if (!headline || !normalizedUrl || !publishedAt) continue;
-      if (!isTopMainstreamNewsUrl(normalizedUrl)) continue;
+      if (!headline || !normalizedUrl) continue;
       if (!isLikelyArticleUrl(normalizedUrl)) continue;
-      if (!isWithinLastSixMonths(publishedAt)) continue;
+      if (publishedAt && !isWithinLastSixMonths(publishedAt)) continue;
 
       const dedupeKey = normalizedUrl.toLowerCase();
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
-
       normalizedNews.push({
         headline,
         url: normalizedUrl,
-        publishedAt,
+        publishedAt: publishedAt || null,
         outlet,
       });
     }
