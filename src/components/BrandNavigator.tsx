@@ -657,7 +657,7 @@ export default function BrandNavigator() {
 
         // 2. Inject it into the database payload
         const customName = buildBrandNavigatorCustomName(brandsForGenerate.map((brand) => brand.name), audience, topicFocus);
-        await supabase.from(BRAND_NAVIGATOR_TABLE).insert([
+        const { error: saveError } = await supabase.from(BRAND_NAVIGATOR_TABLE).insert([
           {
             custom_name: customName,
             brand: brandContext || null,
@@ -672,6 +672,9 @@ export default function BrandNavigator() {
             ip_address,
           },
         ]);
+        if (saveError) {
+          throw saveError;
+        }
         // Optionally, refresh saved matrices here if you want instant UI update
       } catch (saveErr) {
         logger.warn('Failed to save search to Supabase', saveErr);

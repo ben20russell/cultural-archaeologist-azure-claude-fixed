@@ -907,7 +907,7 @@ export default function CulturalArchaeologist() {
         const { device, location, ip_address } = await getUserTelemetry();
 
         // 2. Inject it into the database payload
-        await supabase.from('searches').insert([
+        const { error: saveError } = await supabase.from('searches').insert([
           {
             brand: brandContext || null,
             audience,
@@ -920,6 +920,9 @@ export default function CulturalArchaeologist() {
             ip_address,
           },
         ]);
+        if (saveError) {
+          throw saveError;
+        }
         // Optionally, refresh saved matrices here if you want instant UI update
       } catch (saveErr) {
         logger.warn('Failed to save cultural search to Supabase', saveErr);

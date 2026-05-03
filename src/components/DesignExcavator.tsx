@@ -770,6 +770,8 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
         ]).select();
         if (!error && data) {
           setSavedSearches((prev) => [nextSaved, ...prev.filter((item) => item.id !== nextSaved.id)].slice(0, 20));
+        } else if (error) {
+          throw error;
         }
       } catch (saveErr) {
         // Do not block UI if Supabase fails
@@ -844,9 +846,11 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
               report: result.report,
               created_at: nextSaved.date,
             },
-        ]).select();
+          ]).select();
           if (!error && data) {
             setSavedSearches((prev) => [nextSaved, ...prev.filter((item) => item.id !== nextSaved.id)].slice(0, 20));
+          } else if (error) {
+            throw error;
           }
         } catch (saveErr) {
           // Do not block UI if Supabase fails
