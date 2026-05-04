@@ -1778,31 +1778,36 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div className="relative">
+        <div className="grid grid-cols-[1fr_auto] md:grid-cols-[1fr_1fr_auto] gap-3 items-center">
+          <div className="relative col-span-2 md:col-span-1">
             <Crosshair className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
             <textarea
               value={analysisObjective}
               onChange={(e) => setAnalysisObjective(e.target.value.slice(0, MAX_EXCAVATOR_OBJECTIVE_LENGTH))}
               placeholder="Visual Identity Objective (Optional)"
               rows={1}
-              className="w-full h-[56px] bg-white pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
+              className="w-full h-[50px] bg-white pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
               disabled={isLoading}
             />
           </div>
 
-          <div className="relative">
+          <div className="relative col-span-2 md:col-span-1">
             <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
             <input
               type="text"
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value.slice(0, MAX_EXCAVATOR_AUDIENCE_LENGTH))}
               placeholder="Target Audience (Optional)"
-              className="w-full bg-white pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
+              className="w-full bg-white pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
               disabled={isLoading}
             />
           </div>
-
+          <div
+            className="hidden md:flex items-center justify-center px-3 py-3 rounded-2xl border border-transparent"
+            aria-hidden="true"
+          >
+            <Trash2 className="w-4 h-4 opacity-0" />
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-end pt-2">
