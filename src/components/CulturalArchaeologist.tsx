@@ -725,6 +725,12 @@ export default function CulturalArchaeologist() {
   }, []);
 
   useEffect(() => {
+    if (!toast) return;
+    const timeoutId = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timeoutId);
+  }, [toast]);
+
+  useEffect(() => {
     return () => {
       Object.values(deleteTimeouts.current).forEach((timeoutId) => {
         clearTimeout(timeoutId as ReturnType<typeof setTimeout>);

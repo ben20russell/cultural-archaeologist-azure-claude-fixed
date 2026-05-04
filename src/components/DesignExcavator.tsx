@@ -435,7 +435,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
   const [bestVisualsByBrand, setBestVisualsByBrand] = useState<Record<string, BrandVisualSelection>>({});
   const [visualFailuresByCard, setVisualFailuresByCard] = useState<Record<string, { attempts: number; lastSource: string; isPlaceholder: boolean; hidden?: boolean; retried?: boolean }>>({});
   const [isExporting, setIsExporting] = useState(false);
-  const [, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedDeepDiveSearch[]>([]);
   const websiteLookupTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const undoDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -709,6 +709,12 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
         });
     });
   }, [bestVisualsByBrand, report]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeoutId = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timeoutId);
+  }, [toast]);
 
   useEffect(() => {
     return () => {
@@ -1647,12 +1653,26 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
         </div>
 
       <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3 text-sm no-print"
+          >
+            <Info className="w-4 h-4 text-indigo-400" />
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {undoToast && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-4 text-sm no-print"
+            className={`fixed ${toast ? 'top-20' : 'top-6'} left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-4 text-sm no-print`}
           >
             <Info className="w-4 h-4 text-indigo-400" />
             <span>{undoToast.message}</span>
