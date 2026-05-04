@@ -56,7 +56,10 @@ export function FeedbackChatWidget() {
   };
 
   const widget = (
-    <div className="fixed bottom-5 right-5 z-[1000] pointer-events-auto no-print">
+    <div
+      className="fixed right-3 sm:right-5 z-[1000] pointer-events-auto no-print"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' }}
+    >
       <AnimatePresence>
         {isOpen && (
           <motion.section
@@ -130,7 +133,7 @@ export function FeedbackChatWidget() {
         type="button"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="ml-auto inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-[0_14px_34px_-16px_rgba(0,0,0,0.45)]"
+        className="ml-auto inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium text-zinc-900 shadow-[0_10px_30px_-16px_rgba(0,0,0,0.45)] transition-all hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-[0_14px_34px_-16px_rgba(0,0,0,0.45)]"
       >
         <MessageSquareText className="h-4 w-4 text-indigo-600" />
         Share Feedback

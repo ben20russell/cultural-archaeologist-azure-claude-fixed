@@ -73,6 +73,7 @@ export interface Demographics {
   age?: string | null;
   race?: string | null;
   gender?: string | null;
+  income?: string | null;
 }
 
 export interface CulturalMatrix {
@@ -104,14 +105,14 @@ export interface BrandResearchAudience {
 export interface BrandResearchPositioning {
   taglines: string[];
   keyMessagesAndClaims: string[];
-  valueProposition: string;
+  valueProposition?: string | null;
   voiceAndTone: string;
 }
 
 export interface BrandResearchResult {
   brandName: string;
   highLevelSummary: string;
-  brandMission: string;
+  brandMission?: string | null;
   brandPositioning: BrandResearchPositioning;
   keyOfferingsProductsServices: string[];
   strategicMoatsStrengths: string[];
@@ -635,6 +636,24 @@ type RawRecentNewsCandidate =
 
 const NEWS_MARKDOWN_LINK_PATTERN = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
 const NEWS_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
+const EVIDENCE_URL_PATTERN = /(https?:\/\/[^\s|)]+|www\.[^\s|)]+)/gi;
+
+export function extractUrlsFromEvidenceDigest(evidenceDigest: string): string[] {
+  const matches = evidenceDigest.match(EVIDENCE_URL_PATTERN) || [];
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+
+  for (const match of matches) {
+    const normalized = normalizeExternalHttpUrl(match);
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(normalized);
+  }
+
+  return deduped;
+}
 
 const normalizeRawRecentNewsCandidate = (candidate: RawRecentNewsCandidate): {
   headline?: string;
@@ -1064,6 +1083,23 @@ function sanitizeSources(sources?: { title: string; url: string }[] | null): { t
     });
 }
 
+function sanitizeSourcesWithAllowlist(
+  sources: { title: string; url: string }[] | null | undefined,
+  allowedEvidenceUrls: string[]
+): { title: string; url: string }[] {
+  const sanitized = sanitizeSources(sources);
+  const allowlist = new Set(
+    (allowedEvidenceUrls || [])
+      .map((item) => normalizeExternalHttpUrl(item))
+      .filter((item): item is string => Boolean(item))
+      .map((item) => item.toLowerCase())
+  );
+
+  if (!allowlist.size) return [];
+
+  return sanitized.filter((source) => allowlist.has(source.url.toLowerCase()));
+}
+
 function sanitizeDeepDiveReport(report: DeepDiveReport): DeepDiveReport {
   return {
     ...report,
@@ -1201,13 +1237,21 @@ function sanitizeBrandDeepDiveReport(report: BrandDeepDiveReport): BrandDeepDive
   };
 }
 
-function sanitizeCulturalMatrix(matrix: CulturalMatrix, hasUploadedDocuments: boolean): CulturalMatrix {
-  const stripEvidenceMarkers = (value: string): string =>
-    value
+function sanitizeCulturalMatrix(
+  matrix: CulturalMatrix,
+  hasUploadedDocuments: boolean,
+  allowedEvidenceUrls: string[] = []
+): CulturalMatrix {
+  const stripEvidenceMarkers = (value?: string | null): string =>
+    (value || '')
       .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE)\]\s*/gi, '')
       .replace(/\b(KNOWN|INFERRED|INFERED|SPECULATIVE)\b\s*[:\-]?\s*/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trim();
+  const normalizeDemographic = (value?: string | null): string | null => {
+    const stripped = stripEvidenceMarkers(value);
+    return stripped || null;
+  };
 
   const fallbackLifecycle = (confidence?: MatrixItem['confidenceLevel']): 'emerging' | 'peaking' | 'declining' => {
     if (confidence === 'high') return 'peaking';
@@ -1231,9 +1275,10 @@ function sanitizeCulturalMatrix(matrix: CulturalMatrix, hasUploadedDocuments: bo
   return {
     ...matrix,
     demographics: {
-      age: stripEvidenceMarkers(matrix.demographics?.age || ''),
-      race: stripEvidenceMarkers(matrix.demographics?.race || ''),
-      gender: stripEvidenceMarkers(matrix.demographics?.gender || ''),
+      age: normalizeDemographic(matrix.demographics?.age),
+      gender: normalizeDemographic(matrix.demographics?.gender),
+      income: normalizeDemographic(matrix.demographics?.income),
+      race: normalizeDemographic(matrix.demographics?.race),
     },
     sociological_analysis: stripEvidenceMarkers(matrix.sociological_analysis || ''),
     moments: (matrix.moments || []).map(normalizeItemConfidence),
@@ -1254,7 +1299,7 @@ function sanitizeCulturalMatrix(matrix: CulturalMatrix, hasUploadedDocuments: bo
         .filter(Boolean)
         .slice(0, 20),
     },
-    sources: sanitizeSources(matrix.sources),
+    sources: sanitizeSourcesWithAllowlist(matrix.sources, allowedEvidenceUrls),
   };
 }
 
@@ -1365,6 +1410,73 @@ function normalizeBrandDeepDiveReport(
   };
 }
 
+type ScrapedBrandDesignTokens = {
+  brandName: string;
+  website: string;
+  colors: string[];
+  fonts: string[];
+};
+
+async function fetchDesignTokensForBrand(brandName: string, website?: string): Promise<ScrapedBrandDesignTokens | null> {
+  const trimmedWebsite = (website || '').trim();
+  if (!trimmedWebsite) return null;
+
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/brand-images?domain=${encodeURIComponent(trimmedWebsite)}`);
+    if (!response.ok) return null;
+
+    const payload = await response.json() as {
+      designTokens?: {
+        colors?: string[];
+        fonts?: string[];
+      } | null;
+    };
+
+    const colors = Array.from(
+      new Set(
+        (payload.designTokens?.colors || [])
+          .map((value) => normalizeHexColor(value))
+          .filter((value): value is string => Boolean(value))
+      )
+    ).slice(0, 15);
+
+    const fonts = Array.from(
+      new Set(
+        (payload.designTokens?.fonts || [])
+          .map((value) => (value || '').trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 5);
+
+    return {
+      brandName,
+      website: trimmedWebsite,
+      colors,
+      fonts,
+    };
+  } catch (error) {
+    console.warn('[brand-deep-dive] Failed to fetch scraped design tokens.', { brandName, website: trimmedWebsite, error });
+    return null;
+  }
+}
+
+function buildHardDesignTokensBlock(tokens: ScrapedBrandDesignTokens[]): string {
+  if (!tokens.length) {
+    return `HARD DESIGN TOKENS (Scraped directly from website CSS):
+- Not available for the selected brands.`;
+  }
+
+  return [
+    'HARD DESIGN TOKENS (Scraped directly from website CSS):',
+    ...tokens.map((token, index) => {
+      const colors = token.colors.length ? token.colors.join(', ') : 'Not available';
+      const fonts = token.fonts.length ? token.fonts.join(', ') : 'Not available';
+      return `${index + 1}. ${token.brandName} (${token.website})\n   - Available Colors: ${colors}\n   - Available Fonts: ${fonts}`;
+    }),
+  ].join('\n');
+}
+
 export async function generateBrandDeepDive(input: {
   brands: { name: string; website?: string }[];
   analysisObjective: string;
@@ -1378,8 +1490,24 @@ export async function generateBrandDeepDive(input: {
 
   const topicSummary = `Brand deep dive for ${cappedBrands.map((brand) => brand.name).join(', ')} | objective: ${input.analysisObjective}`;
   const evidenceDigest = await gatherEvidenceForTopic(topicSummary, 'brand');
+  const scrapedDesignTokenList = (
+    await Promise.all(cappedBrands.map((brand) => fetchDesignTokensForBrand(brand.name, brand.website)))
+  ).filter((item): item is ScrapedBrandDesignTokens => Boolean(item));
+  console.log('[brand-deep-dive] Scraped hard design tokens.', {
+    brandCount: cappedBrands.length,
+    tokenCount: scrapedDesignTokenList.length,
+    tokens: scrapedDesignTokenList,
+  });
+  const hardDesignTokensBlock = buildHardDesignTokensBlock(scrapedDesignTokenList);
 
   const prompt = `You are a senior brand design strategist and visual identity analyst.
+
+${hardDesignTokensBlock}
+
+CRITICAL RULE:
+- When filling out hex codes and typography in the schema, you MUST ONLY select from the "HARD DESIGN TOKENS" listed above.
+- DO NOT hallucinate hex codes or fonts from memory.
+- If no matching token exists, return "Not available".
 
 Analyze up to 6 brands by assessing their visual identity systems using this framework:
 1) Logo (primary mark, variations, wordmark/logotype, symbols/icons)
@@ -1484,8 +1612,24 @@ export async function regenerateBrandDeepDiveWithFeedback(input: {
 
   const topicSummary = `Brand deep dive rescan for ${cappedBrands.map((brand) => brand.name).join(', ')} | objective: ${input.analysisObjective}`;
   const evidenceDigest = await gatherEvidenceForTopic(`${topicSummary} | feedback: ${input.feedback}`, 'brand');
+  const scrapedDesignTokenList = (
+    await Promise.all(cappedBrands.map((brand) => fetchDesignTokensForBrand(brand.name, brand.website)))
+  ).filter((item): item is ScrapedBrandDesignTokens => Boolean(item));
+  console.log('[brand-deep-dive] Scraped hard design tokens for regeneration.', {
+    brandCount: cappedBrands.length,
+    tokenCount: scrapedDesignTokenList.length,
+    tokens: scrapedDesignTokenList,
+  });
+  const hardDesignTokensBlock = buildHardDesignTokensBlock(scrapedDesignTokenList);
 
   const prompt = `You are a senior brand design strategist and visual identity analyst.
+
+${hardDesignTokensBlock}
+
+CRITICAL RULE:
+- When filling out hex codes and typography in the schema, you MUST ONLY select from the "HARD DESIGN TOKENS" listed above.
+- DO NOT hallucinate hex codes or fonts from memory.
+- If no matching token exists, return "Not available".
 
 Re-audit and correct the brand deep dive below. Treat the feedback as a request to rescan the listed brand websites and fix inaccuracies.
 
@@ -1975,9 +2119,9 @@ const SourceSchema = z.object({
 
 const CulturalMatrixSchema = z.object({
   demographics: z.object({
-    age: z.string().nullable().describe("Return null if no specific statistical evidence is found."),
-    race: z.string().nullable().describe("Return null if no specific statistical evidence is found."),
-    gender: z.string().nullable().describe("Return null if no specific statistical evidence is found.")
+    age: z.string().nullable().describe("Exact age ranges. MUST return null if no statistical evidence is provided in the context."),
+    gender: z.string().nullable().describe("Exact gender splits. MUST return null if no statistical evidence is provided."),
+    income: z.string().nullable().describe("Income brackets. MUST return null if no statistical evidence is provided.")
   }),
   sociological_analysis: z.string().describe("A concise two-paragraph sociological summary of the socio-economic, historical, and cultural forces shaping this audience."),
   moments: z.array(MatrixItemSchema),
@@ -2010,11 +2154,11 @@ const BrandResearchMatrixSchema = z.object({
     z.object({
       brandName: z.string(),
       highLevelSummary: z.string(),
-      brandMission: z.string(),
+      brandMission: z.string().nullable().describe("The exact brand mission. Return null if not explicitly stated in the provided evidence."),
       brandPositioning: z.object({
         taglines: z.array(z.string()),
         keyMessagesAndClaims: z.array(z.string()),
-        valueProposition: z.string(),
+        valueProposition: z.string().nullable().describe("Return null if not found in evidence."),
         voiceAndTone: z.string(),
       }),
       keyOfferingsProductsServices: z.array(z.string()),
@@ -2049,9 +2193,9 @@ const BrandResearchMatrixSchema = z.object({
 
 const CulturalRawSignalsSchema = z.object({
   demographics: z.object({
-    age: z.string(),
-    race: z.string(),
-    gender: z.string(),
+    age: z.string().nullable(),
+    gender: z.string().nullable(),
+    income: z.string().nullable(),
   }),
   moments: z.array(z.string()),
   beliefs: z.array(z.string()),
@@ -2072,7 +2216,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     : "";
   const hasUploadedDocuments = Boolean(files && files.length > 0);
   const filesStr = files && files.length > 0
-    ? `\n\nI have attached some documents. Please use the information from these documents to help generate the results, in addition to your general knowledge and internet search. If an insight is derived from the attached documents, please set isFromDocument to true.`
+    ? `\n\nI have attached some documents. Please use ONLY the information from these documents and the provided Evidence Digest. If an insight is derived from the attached documents, please set isFromDocument to true.`
     : "";
   const sourcesTypeStr = sourcesType && sourcesType.length > 0
     ? `\n\nCRITICAL: You MUST restrict your sources and insights to be derived primarily from ${sourcesType.join(', ')} sources. Adjust your tone, findings, and the specific cultural signals you highlight to reflect the unique perspective, narratives, and biases of these media types.`
@@ -2087,6 +2231,14 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     `Audience: ${audience}; Brand: ${brand || 'n/a'}; Topic: ${topicFocus || 'n/a'}; Generations: ${(generations || []).join(', ') || 'n/a'}`,
     'cultural'
   );
+  const allowedEvidenceUrls = extractUrlsFromEvidenceDigest(evidenceDigest);
+  const allowedEvidenceUrlList = allowedEvidenceUrls.length > 0
+    ? allowedEvidenceUrls.map((url, idx) => `${idx + 1}. ${url}`).join('\n')
+    : 'No source URLs were provided in the Evidence Digest.';
+  console.log('[cultural-matrix] Extracted evidence URL allowlist.', {
+    allowlistCount: allowedEvidenceUrls.length,
+    allowlist: allowedEvidenceUrls,
+  });
   let redditVerbatim = "";
   try {
     // Naive subreddit guess based on the first word of the audience
@@ -2128,16 +2280,19 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     - wordsTheyUse: common words and terms this audience naturally uses.
     - wordsToAvoid: words that feel inauthentic, corporate, or off-tone for this audience.
     
-    Also provide a rough demographic breakdown (age, race, gender) for this audience in the context of the brand/category.
+    Also provide a demographic breakdown (age, gender, income) only when exact statistical evidence exists.
+
+    SOURCE GROUNDING:
+    Every claim in the demographics and behavior sections MUST be grounded in the provided Evidence Digest.
+    Do NOT invent URLs or sources. If you quote a source, you must use the exact URL provided in the Evidence Digest.
+    If no data is available for a specific demographic field, return null. DO NOT guess.
 
     Evidence digest (quality and date weighted):
     ${evidenceDigest}
+    
+    Allowed source URLs from Evidence Digest (exact strings only):
+    ${allowedEvidenceUrlList}
     ${redditVerbatim}`;
-
-  // Note: Azure OpenAI does not have a built-in "googleSearch" tool like Gemini.
-  // To achieve similar web-grounding, you would need to implement an external search tool
-  // (like Bing Search API) and use OpenAI's function calling to fetch results.
-  // For this template, we rely on the model's internal knowledge.
 
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemInstruction },
@@ -2174,7 +2329,14 @@ Rules:
 - Use trendLifecycle rigorously for each insight.
 - Label uncertain language in text fields with [KNOWN], [INFERRED], [SPECULATIVE].
 - For vocabulary lists, keep entries concise and practical for immediate copywriting use.
-- Ensure sources remain credible and recent, flagging stale evidence when necessary.`;
+- Ensure sources remain credible and recent, flagging stale evidence when necessary.
+- SOURCE GROUNDING:
+  - Every claim in demographics and behaviors MUST be supported by the Evidence Digest signals.
+  - Use only the exact URLs listed below for sources; do not invent or rewrite URLs.
+  - If age, gender, or income lacks statistical evidence, return null for that field.
+
+Allowed Evidence URLs:
+${allowedEvidenceUrlList}`;
 
   const interpretedMatrix = await runStructuredCall({
     schema: CulturalMatrixSchema,
@@ -2203,7 +2365,7 @@ Rules:
     },
   ].slice(0, 10);
 
-  const sanitized = sanitizeCulturalMatrix(interpretedMatrix, hasUploadedDocuments);
+  const sanitized = sanitizeCulturalMatrix(interpretedMatrix, hasUploadedDocuments, allowedEvidenceUrls);
   updateSessionBrief('cultural', sanitized);
   return sanitized;
 }
@@ -2303,6 +2465,11 @@ Requirements:
 - Use the same research rigor: recent evidence (2024-2026), explicit uncertainty handling, and source grounding.
 - For "strategicMoatsStrengths" and "potentialThreatsWeaknesses", heavily weigh financial filings, investor relations data, and aggregate review data. Look past marketing fluff to find actual business realities.
 - For "brandPositioning" and "targetAudiences", prioritize quotes and strategies mentioned by executives in interviews or trade press.
+- CRITICAL ANTI-HALLUCINATION RULES:
+  - You are an EXTRATOR, not a writer.
+  - DO NOT rely on your pre-trained knowledge.
+  - If a specific piece of information (like a mission statement, recent campaign, or strategic moat) is NOT explicitly mentioned in the "Evidence digest" or "First-Party Context", you MUST output null or an empty array.
+  - DO NOT guess, infer, or hallucinate metrics, taglines, or campaigns.
 - Return one complete result object per brand in "results".
 - Each brand result must include:
   1) highLevelSummary (2-4 sentence executive summary of strategy, positioning, and market posture)

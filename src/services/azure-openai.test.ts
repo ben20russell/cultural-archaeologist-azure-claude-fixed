@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBrandModeSubQueries,
   deriveRecentNewsFromSources,
+  extractUrlsFromEvidenceDigest,
   formatDevilsAdvocateLens,
   getDeploymentCandidatesFromEnv,
   scoreEvidenceDomain,
@@ -129,5 +130,20 @@ describe('recent news fallback derivation', () => {
 
     expect(fallback).toHaveLength(1);
     expect(fallback[0].url).toBe('https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint');
+  });
+});
+
+describe('evidence digest URL extraction', () => {
+  it('returns normalized, unique URLs from the evidence digest', () => {
+    const urls = extractUrlsFromEvidenceDigest(`
+1. (authoritative) Census Pulse survey | https://www.census.gov/library/stories/example
+2. (mainstream) Reuters market signal | http://www.reuters.com/world/example-story
+3. (community) duplicate source | https://www.census.gov/library/stories/example
+    `);
+
+    expect(urls).toEqual([
+      'https://www.census.gov/library/stories/example',
+      'http://www.reuters.com/world/example-story',
+    ]);
   });
 });

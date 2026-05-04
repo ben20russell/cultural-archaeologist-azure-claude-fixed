@@ -3,6 +3,10 @@ import { load as cheerioLoad } from 'cheerio';
 export interface BrandImagesResult {
   logoUrl: string | null;
   heroImageUrl: string | null;
+  designTokens: {
+    colors: string[];
+    fonts: string[];
+  };
 }
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -49,6 +53,30 @@ function resolveSecureAbsoluteUrl(rawUrl: string | null | undefined, baseUrl: UR
   } catch {
     return null;
   }
+}
+
+export function extractDesignTokensFromHtml(html: string): { colors: string[]; fonts: string[] } {
+  const hexRegex = /#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})\b/g;
+  const fontRegex = /font-family:\s*([^;}{]+)/gi;
+
+  const colors = Array.from(new Set((html.match(hexRegex) || []).map((value) => value.toUpperCase()))).slice(0, 15);
+
+  const rawFonts: string[] = [];
+  let fontMatch: RegExpExecArray | null = null;
+  while ((fontMatch = fontRegex.exec(html)) !== null) {
+    const cleaned = (fontMatch[1] || '').replace(/['"]/g, '').trim();
+    if (cleaned) rawFonts.push(cleaned);
+  }
+
+  const seenFonts = new Set<string>();
+  const fonts = rawFonts.filter((font) => {
+    const key = font.toLowerCase();
+    if (seenFonts.has(key)) return false;
+    seenFonts.add(key);
+    return true;
+  }).slice(0, 5);
+
+  return { colors, fonts };
 }
 
 async function fetchHtml(url: URL): Promise<string> {
@@ -308,10 +336,18 @@ export async function extractPreciseBrandAssets(domain: string): Promise<BrandIm
     return {
       logoUrl: extractLogoUrl($, baseUrl),
       heroImageUrl: extractHeroImageUrl($, baseUrl),
+      designTokens: extractDesignTokensFromHtml(html),
     };
   } catch {
     // Fail-safe return so callers can proceed gracefully.
-    return { logoUrl: null, heroImageUrl: null };
+    return {
+      logoUrl: null,
+      heroImageUrl: null,
+      designTokens: {
+        colors: [],
+        fonts: [],
+      },
+    };
   }
 }
 

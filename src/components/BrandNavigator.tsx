@@ -1373,7 +1373,7 @@ export default function BrandNavigator() {
             transition={{ duration: 0.5, delay: 0.1 }}
             onSubmit={handleGenerate}
             noValidate
-            className={`w-full max-w-4xl mt-10 relative flex flex-col gap-4 ${isResearchControlsMinimized ? 'hidden' : ''}`}
+            className={`w-full max-w-4xl mt-10 relative flex flex-col gap-4 pb-24 sm:pb-0 ${isResearchControlsMinimized ? 'hidden' : ''}`}
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
               <div className="relative flex flex-col w-full self-start" ref={brandDropdownRef}>
