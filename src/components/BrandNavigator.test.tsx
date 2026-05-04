@@ -216,7 +216,7 @@ describe('BrandNavigator', () => {
     expect(missionSection.className).toContain('self-start');
 
     const sectionsLayout = screen.getByTestId('brand-result-sections-layout');
-    expect(sectionsLayout.className).toContain('lg:columns-2');
+    expect(sectionsLayout.className).toContain('lg:grid-cols-2');
   });
 
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
@@ -572,6 +572,62 @@ describe('BrandNavigator', () => {
       within(recentNewsSection).getByText('No recent coverage found from news outlets or brand press pages.')
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /corporate source only/i })).not.toBeInTheDocument();
+  });
+
+  it('does not display social media links in recent news', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [
+            {
+              headline: 'Patagonia on X',
+              url: 'https://x.com/patagonia/status/12345',
+              publishedAt: new Date().toISOString(),
+              outlet: 'X',
+            },
+            {
+              headline: 'Patagonia expands retail footprint',
+              url: 'https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint',
+              publishedAt: new Date().toISOString(),
+              outlet: 'Fox News',
+            },
+          ],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    expect(await screen.findByRole('link', { name: /patagonia expands retail footprint/i }))
+      .toHaveAttribute('href', 'https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint');
+    expect(screen.queryByRole('link', { name: /patagonia on x/i })).not.toBeInTheDocument();
   });
 
   it('supports Brand Navigator follow-up AI search and highlights grounded sections', async () => {

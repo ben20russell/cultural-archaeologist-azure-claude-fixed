@@ -31,6 +31,12 @@ import { runUserAction } from '../services/user-actions';
 import { normalizeAppError } from '../services/api-errors';
 import { logger } from '../services/logger';
 import { SectionErrorBoundary } from './SectionErrorBoundary';
+import { RecentResultsLibrary } from './RecentResultsLibrary';
+import {
+  APP_RECENT_RESULTS_MODES,
+  saveRecentResult,
+  type RecentResultRecord,
+} from '../services/recent-results-storage';
 
 
 
@@ -46,6 +52,19 @@ interface SavedMatrix {
   customName?: string;
   matrix: CulturalMatrix;
 }
+
+type CulturalRecentResult = RecentResultRecord & {
+  savedMatrix?: SavedMatrix;
+  matrix?: CulturalMatrix;
+  matrixMeta?: {
+    audience: string;
+    brand: string;
+    generations: string[];
+    topicFocus?: string;
+    sourcesType?: string[];
+    hasUploadedDocuments?: boolean;
+  };
+};
 
 interface MatrixContext {
   audience: string;
@@ -380,6 +399,7 @@ export default function CulturalArchaeologist() {
   const [selectedTrendStageFilters, setSelectedTrendStageFilters] = useState<TrendStageFilter[]>([]);
   const [selectedSourceFilters, setSelectedSourceFilters] = useState<string[]>([]);
   const [isResearchControlsMinimized, setIsResearchControlsMinimized] = useState(false);
+  const [recentResultsRefreshNonce, setRecentResultsRefreshNonce] = useState(0);
 
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const deleteTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -494,6 +514,15 @@ export default function CulturalArchaeologist() {
       sourcesType: sm.sourcesType || [],
       hasUploadedDocuments: sm.hasUploadedDocuments || false,
     });
+    const recentItem: CulturalRecentResult = {
+      id: sm.id,
+      title: (sm.customName || sm.brand || 'Saved Cultural Result').trim(),
+      description: `Audience: ${(sm.audience || 'Not specified').trim()}`,
+      savedMatrix: sm,
+    };
+    console.log('[CulturalArchaeologist] Tracking recently viewed saved matrix.', { id: sm.id, title: recentItem.title });
+    saveRecentResult(APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST, recentItem);
+    setRecentResultsRefreshNonce((prev) => prev + 1);
 
     if (shouldScroll) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -900,6 +929,27 @@ export default function CulturalArchaeologist() {
       });
       setMatrix(result);
       setMatrixMeta({ audience, brand: brandContext, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
+      const generatedRecentId = `generated:${brandContext.toLowerCase()}|${audience.toLowerCase()}|${topicFocus.toLowerCase()}`;
+      const generatedRecentItem: CulturalRecentResult = {
+        id: generatedRecentId,
+        title: (brandContext || 'Generated Cultural Analysis').trim(),
+        description: `Audience: ${(audience || 'Not specified').trim()}`,
+        matrix: result,
+        matrixMeta: {
+          audience,
+          brand: brandContext,
+          generations: selectedGenerations,
+          topicFocus,
+          sourcesType,
+          hasUploadedDocuments,
+        },
+      };
+      console.log('[CulturalArchaeologist] Tracking generated result in recent results library.', {
+        id: generatedRecentId,
+        title: generatedRecentItem.title,
+      });
+      saveRecentResult(APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST, generatedRecentItem);
+      setRecentResultsRefreshNonce((prev) => prev + 1);
 
       // Persist generated searches directly to Supabase
       try {
@@ -2581,6 +2631,24 @@ export default function CulturalArchaeologist() {
             <p className="subheader-copy text-xs text-zinc-400 text-center mt-2">
               AI models can make mistakes. Always double check your work. Remember to think critically.
             </p>
+            <RecentResultsLibrary<CulturalRecentResult>
+              mode={APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST}
+              title="Recent Projects"
+              refreshNonce={recentResultsRefreshNonce}
+              onSelectItem={(item) => {
+                console.log('[CulturalArchaeologist] Recent result selected.', { id: item.id, title: item.title });
+                if (item.savedMatrix) {
+                  loadSavedMatrix(item.savedMatrix, true);
+                  return;
+                }
+                if (item.matrix && item.matrixMeta) {
+                  setMatrix(item.matrix);
+                  setMatrixMeta(item.matrixMeta);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              className="mt-8"
+            />
             
             {error && (
               <p className="text-red-500 text-sm mt-2">{error}</p>
@@ -3068,6 +3136,28 @@ export default function CulturalArchaeologist() {
             </SectionErrorBoundary>
           )}
         </AnimatePresence>
+
+        {matrix && (
+          <div className="w-full mt-14 mb-20 no-print">
+            <RecentResultsLibrary<CulturalRecentResult>
+              mode={APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST}
+              title="Recent Projects"
+              refreshNonce={recentResultsRefreshNonce}
+              onSelectItem={(item) => {
+                console.log('[CulturalArchaeologist] Recent result selected.', { id: item.id, title: item.title });
+                if (item.savedMatrix) {
+                  loadSavedMatrix(item.savedMatrix, true);
+                  return;
+                }
+                if (item.matrix && item.matrixMeta) {
+                  setMatrix(item.matrix);
+                  setMatrixMeta(item.matrixMeta);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Recent Searches at bottom of results is hidden for now. Code is preserved below for future use. */}
         {false && matrix && visibleSavedMatrices.length > 0 && (

@@ -45,7 +45,7 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { buildBrandWebsiteContextPrompt, fetchBrandWebsiteContext } from './brand-web-context';
 import { normalizeExternalHttpUrl, sanitizeApiBaseUrl } from './external-links';
-import { isLikelyArticleUrl } from './news-outlets';
+import { isLikelyArticleUrl, isSocialMediaUrl } from './news-outlets';
 
 export interface MatrixItem {
   text: string;
@@ -690,7 +690,7 @@ export function deriveRecentNewsFromSources(
 
   for (const source of sources || []) {
     const normalizedUrl = normalizeExternalHttpUrl(source.url || undefined);
-    if (!normalizedUrl || !isLikelyArticleUrl(normalizedUrl)) continue;
+    if (!normalizedUrl || !isLikelyArticleUrl(normalizedUrl) || isSocialMediaUrl(normalizedUrl)) continue;
 
     const rawTitle = (source.title || '').trim();
     if (!rawTitle || SOURCE_TITLE_BLOCKLIST.test(rawTitle)) continue;
@@ -2378,7 +2378,7 @@ function filterRecentNewsToTopMainstream(report: BrandResearchMatrix): BrandRese
       const outlet = (normalizedCandidate.outlet || '').trim() || null;
 
       if (!headline || !normalizedUrl) continue;
-      if (!isLikelyArticleUrl(normalizedUrl)) continue;
+      if (!isLikelyArticleUrl(normalizedUrl) || isSocialMediaUrl(normalizedUrl)) continue;
       if (publishedAt && !isWithinLastSixMonths(publishedAt)) continue;
 
       const dedupeKey = normalizedUrl.toLowerCase();

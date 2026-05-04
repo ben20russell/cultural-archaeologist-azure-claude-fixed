@@ -12,7 +12,7 @@ import { askBrandNavigatorQuestion, generateBrandResearchMatrix, suggestBrands }
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
 import { isBrandNavigatorRoute } from '../services/navigation-routes';
 import { normalizeExternalHttpUrl, toSafeExternalHref } from '../services/external-links';
-import { isLikelyArticleUrl } from '../services/news-outlets';
+import { isLikelyArticleUrl, isSocialMediaUrl } from '../services/news-outlets';
 import {
   BRAND_SUGGESTION_DEBOUNCE_MS,
   getLocalBrandSuggestions,
@@ -31,6 +31,12 @@ import { runUserAction } from '../services/user-actions';
 import { normalizeAppError } from '../services/api-errors';
 import { logger } from '../services/logger';
 import { SectionErrorBoundary } from './SectionErrorBoundary';
+import { RecentResultsLibrary } from './RecentResultsLibrary';
+import {
+  APP_RECENT_RESULTS_MODES,
+  saveRecentResult,
+  type RecentResultRecord,
+} from '../services/recent-results-storage';
 
 const BRAND_NAVIGATOR_TABLE = 'BrandNavigator';
 
@@ -48,6 +54,19 @@ interface SavedMatrix {
   customName?: string;
   matrix: BrandResearchMatrix;
 }
+
+type BrandNavigatorRecentResult = RecentResultRecord & {
+  savedMatrix?: SavedMatrix;
+  matrix?: BrandResearchMatrix;
+  matrixMeta?: {
+    audience: string;
+    brand: string;
+    generations: string[];
+    topicFocus?: string;
+    sourcesType?: string[];
+    hasUploadedDocuments?: boolean;
+  };
+};
 
 type BrandResultSectionKey =
   | 'highLevelSummary'
@@ -208,6 +227,7 @@ export default function BrandNavigator() {
   const normalizedBrands = useMemo(() => normalizeBrandTokens(selectedBrands), [selectedBrands]);
   const brandInputQuery = brandInput.trim();
   const [isResearchControlsMinimized, setIsResearchControlsMinimized] = useState(false);
+  const [recentResultsRefreshNonce, setRecentResultsRefreshNonce] = useState(0);
 
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const deleteTimeouts = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -254,6 +274,15 @@ export default function BrandNavigator() {
       sourcesType: sm.sourcesType || [],
       hasUploadedDocuments: sm.hasUploadedDocuments || false,
     });
+    const recentItem: BrandNavigatorRecentResult = {
+      id: sm.id,
+      title: (sm.customName || sm.brand || 'Saved Brand Navigator Result').trim(),
+      description: `Audience: ${(sm.audience || 'Not specified').trim()}`,
+      savedMatrix: sm,
+    };
+    console.log('[BrandNavigator] Tracking recently viewed saved matrix.', { id: sm.id, title: recentItem.title });
+    saveRecentResult(APP_RECENT_RESULTS_MODES.BRAND_NAVIGATOR, recentItem);
+    setRecentResultsRefreshNonce((prev) => prev + 1);
 
     if (shouldScroll) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -649,6 +678,27 @@ export default function BrandNavigator() {
       const sanitizedResult = sanitizeBrandResearchMatrix(result);
       setMatrix(sanitizedResult);
       setMatrixMeta({ audience, brand: brandContext, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
+      const generatedRecentId = `generated:${brandContext.toLowerCase()}|${audience.toLowerCase()}|${topicFocus.toLowerCase()}`;
+      const generatedRecentItem: BrandNavigatorRecentResult = {
+        id: generatedRecentId,
+        title: (brandContext || 'Generated Brand Analysis').trim(),
+        description: `Audience: ${(audience || 'Not specified').trim()}`,
+        matrix: sanitizedResult,
+        matrixMeta: {
+          audience,
+          brand: brandContext,
+          generations: selectedGenerations,
+          topicFocus,
+          sourcesType,
+          hasUploadedDocuments,
+        },
+      };
+      console.log('[BrandNavigator] Tracking generated result in recent results library.', {
+        id: generatedRecentId,
+        title: generatedRecentItem.title,
+      });
+      saveRecentResult(APP_RECENT_RESULTS_MODES.BRAND_NAVIGATOR, generatedRecentItem);
+      setRecentResultsRefreshNonce((prev) => prev + 1);
 
       // Persist generated searches directly to Supabase
       try {
@@ -1761,6 +1811,24 @@ export default function BrandNavigator() {
             <p className="subheader-copy text-xs text-zinc-400 text-center mt-2">
               AI models can make mistakes. Always double check your work. Remember to think critically.
             </p>
+            <RecentResultsLibrary<BrandNavigatorRecentResult>
+              mode={APP_RECENT_RESULTS_MODES.BRAND_NAVIGATOR}
+              title="Recent Projects"
+              refreshNonce={recentResultsRefreshNonce}
+              onSelectItem={(item) => {
+                console.log('[BrandNavigator] Recent result selected.', { id: item.id, title: item.title });
+                if (item.savedMatrix) {
+                  loadSavedMatrix(item.savedMatrix, true);
+                  return;
+                }
+                if (item.matrix && item.matrixMeta) {
+                  setMatrix(item.matrix);
+                  setMatrixMeta(item.matrixMeta);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              className="mt-8"
+            />
             
             {error && (
               <p className="text-red-500 text-sm mt-2">{error}</p>
@@ -2031,6 +2099,28 @@ export default function BrandNavigator() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {matrix && (
+          <div className="w-full mt-14 mb-20 no-print">
+            <RecentResultsLibrary<BrandNavigatorRecentResult>
+              mode={APP_RECENT_RESULTS_MODES.BRAND_NAVIGATOR}
+              title="Recent Projects"
+              refreshNonce={recentResultsRefreshNonce}
+              onSelectItem={(item) => {
+                console.log('[BrandNavigator] Recent result selected.', { id: item.id, title: item.title });
+                if (item.savedMatrix) {
+                  loadSavedMatrix(item.savedMatrix, true);
+                  return;
+                }
+                if (item.matrix && item.matrixMeta) {
+                  setMatrix(item.matrix);
+                  setMatrixMeta(item.matrixMeta);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Recent Searches at bottom of results is hidden for now. Code is preserved below for future use. */}
         {false && matrix && visibleSavedMatrices.length > 0 && (
@@ -2482,7 +2572,7 @@ const buildRecentHeadlines = (brandResult: BrandResultEntry): ParsedHeadline[] =
 
   fromRecentNews.forEach((item) => {
     if (!item.url) return;
-    if (!isLikelyArticleUrl(item.url)) return;
+    if (!isLikelyArticleUrl(item.url) || isSocialMediaUrl(item.url)) return;
     if (item.publishedAt) {
       const publishedTime = new Date(item.publishedAt).getTime();
       if (Number.isNaN(publishedTime) || publishedTime < sixMonthsAgo.getTime()) return;
@@ -2721,9 +2811,9 @@ function BrandResultCard({
 
       <div
         data-testid="brand-result-sections-layout"
-        className="columns-1 lg:columns-2 gap-5 text-sm text-zinc-700"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm text-zinc-700"
       >
-        <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:[column-span:all]">
+        <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <p>{brandResult.highLevelSummary || 'N/A'}</p>
         </BrandCriteriaSection>
 
@@ -2731,7 +2821,7 @@ function BrandResultCard({
           <p>{brandResult.brandMission || 'N/A'}</p>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" highlighted={highlightedSections.includes('brandPositioning')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:[column-span:all]">
+        <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" highlighted={highlightedSections.includes('brandPositioning')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <div className="space-y-2">
             <BrandResultLabeledBulletList label="Taglines" items={positioning.taglines || []} />
             <BrandResultLabeledBulletList label="Key messages and claims" items={positioning.keyMessagesAndClaims || []} />
@@ -2752,7 +2842,7 @@ function BrandResultCard({
           <BrandResultBulletList items={brandResult.potentialThreatsWeaknesses || []} />
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Target audiences" sectionKey="targetAudiences" highlighted={highlightedSections.includes('targetAudiences')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:[column-span:all]">
+        <BrandCriteriaSection title="Target audiences" sectionKey="targetAudiences" highlighted={highlightedSections.includes('targetAudiences')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
             {(brandResult.targetAudiences || []).map((aud, audIndex) => (
               <TargetAudienceCard
@@ -2793,7 +2883,7 @@ function BrandResultCard({
           </div>
         </BrandCriteriaSection>
 
-        <BrandCriteriaSection title="Recent news" sectionKey="recentNews" highlighted={highlightedSections.includes('recentNews')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:[column-span:all]">
+        <BrandCriteriaSection title="Recent news" sectionKey="recentNews" highlighted={highlightedSections.includes('recentNews')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <ul className="space-y-1">
             {displayNewsItems.length > 0 ? (
               displayNewsItems.map((item, idx) => (
@@ -2895,7 +2985,7 @@ function BrandCriteriaSection({
         if (!compareEnabled || !sectionKey || !onRequestCompareAcrossBrands) return;
         onRequestCompareAcrossBrands(event, sectionKey);
       }}
-      className={`rounded-2xl border bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start break-inside-avoid mb-5 ${highlighted ? 'border-indigo-300 ring-2 ring-indigo-200/70' : 'border-zinc-200'} ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
+      className={`rounded-2xl border bg-zinc-50/80 p-6 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start ${highlighted ? 'border-indigo-300 ring-2 ring-indigo-200/70' : 'border-zinc-200'} ${compareEnabled ? 'cursor-pointer hover:border-zinc-300' : ''} ${className}`.trim()}
     >
       <h4 className="text-sm font-semibold text-zinc-900 mb-3 uppercase tracking-wider inline-flex items-center gap-3">
         <span>{title}</span>

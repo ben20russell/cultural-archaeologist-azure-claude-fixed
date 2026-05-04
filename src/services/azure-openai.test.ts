@@ -114,4 +114,20 @@ describe('recent news fallback derivation', () => {
     expect(fallback[0].headline).toContain('Patagonia expands retail footprint');
     expect(fallback[0].url).toBe('https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint');
   });
+
+  it('excludes social media URLs from recent news source fallback', () => {
+    const fallback = deriveRecentNewsFromSources([
+      {
+        title: 'Patagonia post on X',
+        url: 'https://x.com/patagonia/status/12345',
+      },
+      {
+        title: 'Patagonia expands retail footprint in key U.S. metros',
+        url: 'https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint',
+      },
+    ]);
+
+    expect(fallback).toHaveLength(1);
+    expect(fallback[0].url).toBe('https://www.foxnews.com/lifestyle/patagonia-expands-retail-footprint');
+  });
 });

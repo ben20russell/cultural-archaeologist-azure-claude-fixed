@@ -138,3 +138,30 @@ export const isLikelyArticleUrl = (url?: string | null): boolean => {
     return false;
   }
 };
+
+const SOCIAL_MEDIA_HOSTS = [
+  'x.com',
+  'twitter.com',
+  'instagram.com',
+  'facebook.com',
+  'fb.com',
+  'linkedin.com',
+  'tiktok.com',
+  'youtube.com',
+  'youtu.be',
+  'threads.net',
+  'pinterest.com',
+  'snapchat.com',
+];
+
+export const isSocialMediaUrl = (url?: string | null): boolean => {
+  const safeUrl = normalizeExternalHttpUrl(url);
+  if (!safeUrl) return false;
+
+  try {
+    const hostname = new URL(safeUrl).hostname.toLowerCase();
+    return SOCIAL_MEDIA_HOSTS.some((allowed) => matchesAllowedHostname(hostname, allowed));
+  } catch {
+    return false;
+  }
+};

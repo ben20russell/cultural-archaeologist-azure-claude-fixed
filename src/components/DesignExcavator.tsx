@@ -81,6 +81,12 @@ import { runUserAction } from '../services/user-actions';
 import { normalizeAppError } from '../services/api-errors';
 import { logger } from '../services/logger';
 import { SectionErrorBoundary } from './SectionErrorBoundary';
+import { RecentResultsLibrary } from './RecentResultsLibrary';
+import {
+  APP_RECENT_RESULTS_MODES,
+  saveRecentResult,
+  type RecentResultRecord,
+} from '../services/recent-results-storage';
 
 interface VisualDesignPageProps {
   onBack: () => void;
@@ -110,6 +116,14 @@ interface SavedDeepDiveSearch {
   report: VisualDesignReport;
   customName?: string;
 }
+
+type DesignExcavatorRecentResult = RecentResultRecord & {
+  savedSearch?: SavedDeepDiveSearch;
+  report?: VisualDesignReport;
+  brands?: Array<{ name: string; website?: string }>;
+  analysisObjective?: string;
+  targetAudience?: string;
+};
 
 type ResultTab = 'profiles' | 'compare';
 type CompareElement = 'primaryColors' | 'accentColors' | 'neutrals' | 'typography' | 'imageryStyle';
@@ -434,6 +448,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
   const requestedHeroRef = useRef<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [recentResultsRefreshNonce, setRecentResultsRefreshNonce] = useState(0);
 
   // Loader for all visuals (now after report and bestVisualsByBrand)
   const { allVisualsLoaded, handleImageLoad, handleImageError, expectedCount } = useAllVisualsLoaded(report, bestVisualsByBrand);
@@ -515,6 +530,15 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
     setLogoImages({});
     requestedHeroRef.current.clear();
     setToast('Loaded saved search.');
+    const recentItem: DesignExcavatorRecentResult = {
+      id: saved.id,
+      title: (saved.customName || saved.brands.map((brand) => brand.name).join(' vs ') || 'Saved Design Result').trim(),
+      description: (saved.targetAudience || 'No audience provided').trim(),
+      savedSearch: saved,
+    };
+    console.log('[DesignExcavator] Tracking recently viewed saved search.', { id: saved.id, title: recentItem.title });
+    saveRecentResult(APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR, recentItem);
+    setRecentResultsRefreshNonce((prev) => prev + 1);
   };
 
   const renameSavedSearch = async (id: string, newName: string) => {
@@ -747,6 +771,22 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
 
       setReport(result);
       setIsSearchControlsMinimized(true);
+      const generatedRecentId = `generated:${normalizedBrands.map((brand) => brand.name.toLowerCase()).join('|')}|${targetAudience.toLowerCase()}`;
+      const generatedRecentItem: DesignExcavatorRecentResult = {
+        id: generatedRecentId,
+        title: normalizedBrands.map((brand) => brand.name).join(' vs ') || 'Generated Visual Analysis',
+        description: (targetAudience || 'No audience provided').trim(),
+        report: result,
+        brands: normalizedBrands,
+        analysisObjective,
+        targetAudience,
+      };
+      console.log('[DesignExcavator] Tracking generated result in recent results library.', {
+        id: generatedRecentId,
+        title: generatedRecentItem.title,
+      });
+      saveRecentResult(APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR, generatedRecentItem);
+      setRecentResultsRefreshNonce((prev) => prev + 1);
 
       const nextSaved: SavedDeepDiveSearch = {
         id: `deep-dive-${Date.now()}`,
@@ -826,6 +866,22 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
       if (result.mode === 'rescan') {
         setReport(result.report);
         setResultTab('profiles');
+        const rescanRecentId = `rescan:${normalizedBrands.map((brand) => brand.name.toLowerCase()).join('|')}|${targetAudience.toLowerCase()}`;
+        const rescanRecentItem: DesignExcavatorRecentResult = {
+          id: rescanRecentId,
+          title: normalizedBrands.map((brand) => brand.name).join(' vs ') || 'Updated Visual Analysis',
+          description: (targetAudience || 'No audience provided').trim(),
+          report: result.report,
+          brands: normalizedBrands,
+          analysisObjective,
+          targetAudience,
+        };
+        console.log('[DesignExcavator] Tracking rescanned result in recent results library.', {
+          id: rescanRecentId,
+          title: rescanRecentItem.title,
+        });
+        saveRecentResult(APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR, rescanRecentItem);
+        setRecentResultsRefreshNonce((prev) => prev + 1);
 
         const nextSaved: SavedDeepDiveSearch = {
           id: `deep-dive-${Date.now()}`,
@@ -1660,12 +1716,12 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
         transition={{ duration: 0.5, delay: 0.1 }}
         onSubmit={handleSubmit}
         noValidate
-        className={`w-full relative flex flex-col gap-4 bg-white rounded-3xl border border-zinc-200 shadow-sm p-4 sm:p-6 md:p-8 space-y-4 ${isSearchControlsMinimized ? 'hidden' : ''}`}
+        className={`w-full relative flex flex-col gap-4 space-y-4 ${isSearchControlsMinimized ? 'hidden' : ''}`}
       >
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">Brands To Analyze</h3>
-            <span className="text-xs text-zinc-400">{brandCount}/6 filled</span>
+            <span className="text-xs text-zinc-400">{brandCount}/6 brands </span>
           </div>
 
           <div className="space-y-4 sm:space-y-3">
@@ -1678,7 +1734,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
                     value={brand.name}
                     onChange={(e) => updateBrandRow(brand.id, 'name', e.target.value)}
                     placeholder={`Brand ${idx + 1} Name`}
-                    className="w-full pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
+                    className="w-full bg-white pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
                     disabled={isLoading}
                   />
                 </div>
@@ -1689,14 +1745,14 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
                     value={brand.website}
                     onChange={(e) => updateBrandRow(brand.id, 'website', e.target.value)}
                     placeholder="Website URL (optional)"
-                    className="w-full pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
+                    className="w-full bg-white pl-12 pr-4 py-3 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
                     disabled={isLoading}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => removeBrandRow(brand.id)}
-                  className="col-start-2 row-start-1 self-start md:col-start-auto md:row-start-auto md:self-auto px-3 py-3 rounded-2xl border border-zinc-200 text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
+                  className="col-start-2 row-start-1 self-start md:col-start-auto md:row-start-auto md:self-auto px-3 py-3 rounded-2xl border border-zinc-200 bg-white text-zinc-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                   disabled={isLoading || brands.length === 1}
                   aria-label={`Remove brand ${idx + 1}`}
                 >
@@ -1711,7 +1767,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
               type="button"
               onClick={addBrandRow}
               disabled={!canAddBrand || isLoading}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
               Add Brand
@@ -1730,7 +1786,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
               onChange={(e) => setAnalysisObjective(e.target.value.slice(0, MAX_EXCAVATOR_OBJECTIVE_LENGTH))}
               placeholder="Visual Identity Objective (Optional)"
               rows={1}
-              className="w-full h-[56px] pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
+              className="w-full h-[56px] bg-white pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none text-left"
               disabled={isLoading}
             />
           </div>
@@ -1742,7 +1798,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value.slice(0, MAX_EXCAVATOR_AUDIENCE_LENGTH))}
               placeholder="Target Audience (Optional)"
-              className="w-full pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
+              className="w-full bg-white pl-12 pr-4 py-4 rounded-2xl border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-left"
               disabled={isLoading}
             />
           </div>
@@ -1802,6 +1858,33 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
       <p className={`text-xs text-zinc-400 text-center mt-4 sm:mt-3 select-none ${isSearchControlsMinimized ? 'hidden' : ''}`}>
         AI models can make mistakes. Always double check your work. Remember to think critically.
       </p>
+      <RecentResultsLibrary<DesignExcavatorRecentResult>
+        mode={APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR}
+        title="Recent Projects"
+        refreshNonce={recentResultsRefreshNonce}
+        onSelectItem={(item) => {
+          console.log('[DesignExcavator] Recent result selected.', { id: item.id, title: item.title });
+          if (item.savedSearch) {
+            loadSavedSearch(item.savedSearch);
+            return;
+          }
+          if (item.report && item.brands) {
+            const loadedBrands = item.brands.slice(0, 6).map((brand, idx) => ({
+              id: `brand-recent-${Date.now()}-${idx}`,
+              name: (brand.name || '').trim(),
+              website: (brand.website || '').trim(),
+            }));
+            setBrands(loadedBrands.length > 0 ? loadedBrands : [{ id: 'brand-1', name: '', website: '' }]);
+            setAnalysisObjective(item.analysisObjective || '');
+            setTargetAudience(item.targetAudience || '');
+            setReport(item.report);
+            setResultTab('profiles');
+            setIsSearchControlsMinimized(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }}
+        className={isSearchControlsMinimized ? 'hidden' : 'mt-2'}
+      />
 
       </div>
 
@@ -2274,6 +2357,37 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
           </SectionErrorBoundary>
         )}
       </AnimatePresence>
+
+      {report && (
+        <div className="w-full max-w-4xl mx-auto mt-14 mb-20 no-print">
+          <RecentResultsLibrary<DesignExcavatorRecentResult>
+            mode={APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR}
+            title="Recent Projects"
+            refreshNonce={recentResultsRefreshNonce}
+            onSelectItem={(item) => {
+              console.log('[DesignExcavator] Recent result selected.', { id: item.id, title: item.title });
+              if (item.savedSearch) {
+                loadSavedSearch(item.savedSearch);
+                return;
+              }
+              if (item.report && item.brands) {
+                const loadedBrands = item.brands.slice(0, 6).map((brand, idx) => ({
+                  id: `brand-recent-${Date.now()}-${idx}`,
+                  name: (brand.name || '').trim(),
+                  website: (brand.website || '').trim(),
+                }));
+                setBrands(loadedBrands.length > 0 ? loadedBrands : [{ id: 'brand-1', name: '', website: '' }]);
+                setAnalysisObjective(item.analysisObjective || '');
+                setTargetAudience(item.targetAudience || '');
+                setReport(item.report);
+                setResultTab('profiles');
+                setIsSearchControlsMinimized(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Your Library section is hidden for now. Code is preserved below for future use. */}
       {false && (
