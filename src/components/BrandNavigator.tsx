@@ -6,7 +6,28 @@ import { getUserTelemetry } from '../services/telemetry';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Palette, ArrowLeft } from 'lucide-react';
+import {
+  Search,
+  Loader2,
+  Sparkles,
+  FileText,
+  Presentation,
+  ExternalLink,
+  Info,
+  Tag,
+  Users,
+  Filter,
+  ChevronDown,
+  Check,
+  Clock,
+  Trash2,
+  Target,
+  Upload,
+  X,
+  RefreshCw,
+  Palette,
+  ArrowLeft,
+} from 'lucide-react';
 import { BrandResearchMatrix, UploadedFile } from '../services/azure-openai';
 import { askBrandNavigatorQuestion, generateBrandResearchMatrix, suggestBrands } from '../services/azure-openai';
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
@@ -40,7 +61,14 @@ import {
 
 const BRAND_NAVIGATOR_TABLE = 'BrandNavigator';
 
-
+type BrandMatrixMeta = {
+  audience: string;
+  brand: string;
+  generations: string[];
+  topicFocus?: string;
+  sourcesType?: string[];
+  hasUploadedDocuments?: boolean;
+};
 
 interface SavedMatrix {
   id: string;
@@ -58,14 +86,7 @@ interface SavedMatrix {
 type BrandNavigatorRecentResult = RecentResultRecord & {
   savedMatrix?: SavedMatrix;
   matrix?: BrandResearchMatrix;
-  matrixMeta?: {
-    audience: string;
-    brand: string;
-    generations: string[];
-    topicFocus?: string;
-    sourcesType?: string[];
-    hasUploadedDocuments?: boolean;
-  };
+  matrixMeta?: BrandMatrixMeta;
 };
 
 type BrandResultSectionKey =
@@ -100,19 +121,25 @@ const MAX_AUDIENCE_INPUT_LENGTH = 180;
 const MAX_TOPIC_INPUT_LENGTH = 180;
 
 const GENERATIONS = [
-  "Gen Alpha (2013–mid 2020s)",
-  "Gen Z (1997–2012)",
-  "Millennials (1981–1996)",
-  "Gen X (1965–1980)",
-  "Boomers (1946–1964)"
+  'Gen Alpha (2013–mid 2020s)',
+  'Gen Z (1997–2012)',
+  'Millennials (1981–1996)',
+  'Gen X (1965–1980)',
+  'Boomers (1946–1964)',
 ];
 
 const SOURCES_TYPES = [
-  "Mainstream",
-  "Topic-Specific",
-  "Alternative Media",
-  "Niche/Fringe"
+  'Mainstream',
+  'Topic-Specific',
+  'Alternative Media',
+  'Niche/Fringe',
 ];
+
+const isTestEnvironment = (): boolean =>
+  typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+
+const shouldShowSplashOnInit = (isDirectBrandNavigatorRoute: boolean): boolean =>
+  !isDirectBrandNavigatorRoute && !isTestEnvironment();
 
 const buildBrandNavigatorCustomName = (
   brands: string[],
@@ -162,16 +189,10 @@ export default function BrandNavigator() {
     hash: typeof window !== 'undefined' ? window.location.hash : '',
     isDirectBrandNavigatorRoute,
   });
-  // Instantly skip splash in test environments
-  const [showSplash, setShowSplash] = useState(() => {
-    if (isDirectBrandNavigatorRoute) {
-      return false;
-    }
-    if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') {
-      return false;
-    }
-    return true;
-  });
+  // Instantly skip splash in test environments.
+  const [showSplash, setShowSplash] = useState(() =>
+    shouldShowSplashOnInit(isDirectBrandNavigatorRoute)
+  );
   const [isSplashHeld, setIsSplashHeld] = useState(false);
   const [activeExperience, setActiveExperience] = useState<'research' | 'brand' | null>(
     isDirectBrandNavigatorRoute ? 'research' : null
@@ -211,7 +232,7 @@ export default function BrandNavigator() {
   const loadTimesRef = useRef<number[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [matrix, setMatrix] = useState<BrandResearchMatrix | null>(null);
-  const [matrixMeta, setMatrixMeta] = useState<{audience: string, brand: string, generations: string[], topicFocus?: string, sourcesType?: string[], hasUploadedDocuments?: boolean} | null>(null);
+  const [matrixMeta, setMatrixMeta] = useState<BrandMatrixMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [saveWarning, setSaveWarning] = useState<string | null>(null);
@@ -322,8 +343,8 @@ export default function BrandNavigator() {
 
   // Auto-hide splash screen after 3 seconds, with press-and-hold pause.
   useEffect(() => {
-    // Instantly dismiss splash in test env
-    if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') {
+    // Instantly dismiss splash in test env.
+    if (isTestEnvironment()) {
       setShowSplash(false);
       return;
     }
