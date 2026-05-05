@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { Search, Loader2, Sparkles, FileText, Presentation, ExternalLink, Info, Tag, Users, Filter, ChevronDown, Check, Clock, Trash2, Target, Upload, X, RefreshCw, Calendar, Activity, Palette, ArrowLeft } from 'lucide-react';
 import { CompassRoseIcon } from './icons/CompassRoseIcon';
-import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport } from '../services/azure-openai';
+import { CulturalMatrix, MatrixItem, UploadedFile, DeepDiveReport, CulturalRerunFilters } from '../services/azure-openai';
 import { generateCulturalMatrix, suggestBrands, askMatrixQuestion, generateDeepDive, generateDeepDivesBatch } from '../services/azure-openai';
 import { SplashGrid } from './SplashGrid';
 import { BrandDeepDivePage } from './DesignExcavator';
@@ -487,6 +487,13 @@ export default function CulturalArchaeologist() {
     selectedEvidenceFilters.length +
     selectedTrendStageFilters.length +
     selectedSourceFilters.length;
+  const hasActiveResultFilters = activeFilterCount > 0;
+  const activeRerunFilters = useMemo<CulturalRerunFilters>(() => ({
+    confidenceLevels: [...selectedConfidenceFilters],
+    evidenceTypes: [...selectedEvidenceFilters],
+    trendStages: [...selectedTrendStageFilters],
+    sourceTypes: [...selectedSourceFilters],
+  }), [selectedConfidenceFilters, selectedEvidenceFilters, selectedTrendStageFilters, selectedSourceFilters]);
   const displayMatrix = filteredMatrix || matrix;
   const hasVisibleInsights =
     !!displayMatrix && MATRIX_INSIGHT_KEYS.some((key) => (displayMatrix[key] || []).length > 0);
@@ -899,22 +906,25 @@ export default function CulturalArchaeologist() {
     setExportError(null);
   };
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const pendingBrand = brandInput.trim();
-    const brandTokensForGenerate = pendingBrand && !normalizedBrands.some((item) => item.toLowerCase() === pendingBrand.toLowerCase())
-      ? [...normalizedBrands, pendingBrand]
-      : normalizedBrands;
-    const brandContext = brandTokensForGenerate.join(', ');
-
-    if (pendingBrand) {
-      setSelectedBrands(brandTokensForGenerate);
-      setBrandInput('');
-    }
-
-    setShowValidation(true);
-    if (!audience.trim()) return;
-
+  const runCulturalMatrixGeneration = async ({
+    audienceValue,
+    brandContextValue,
+    generationsValue,
+    topicFocusValue,
+    filesValue,
+    sourcesTypeValue,
+    rerunFilters,
+    actionName,
+  }: {
+    audienceValue: string;
+    brandContextValue: string;
+    generationsValue: string[];
+    topicFocusValue: string;
+    filesValue: UploadedFile[];
+    sourcesTypeValue: string[];
+    rerunFilters?: CulturalRerunFilters;
+    actionName: 'generate-cultural-matrix' | 'rerun-cultural-matrix';
+  }) => {
     setFakeProgress(5);
     setIsLoading(true);
     const searchStart = Date.now();
@@ -926,27 +936,51 @@ export default function CulturalArchaeologist() {
     setMatrixQuestion('');
     setMatrixAnswer('');
     setHighlightedInsights([]);
-    const hasUploadedDocuments = files.length > 0;
+    const hasUploadedDocuments = filesValue.length > 0;
     try {
+      console.log('[CulturalArchaeologist] Starting matrix generation request.', {
+        actionName,
+        audienceValue,
+        brandContextValue,
+        generationsValue,
+        topicFocusValue,
+        sourcesTypeValue,
+        rerunFilters,
+      });
       const result = await runUserAction({
-        actionName: 'generate-cultural-matrix',
-        action: () => generateCulturalMatrix(audience, brandContext, selectedGenerations, topicFocus, files, sourcesType),
+        actionName,
+        action: () => generateCulturalMatrix(
+          audienceValue,
+          brandContextValue,
+          generationsValue,
+          topicFocusValue,
+          filesValue,
+          sourcesTypeValue,
+          rerunFilters
+        ),
         onError: (normalized) => setError(normalized.message),
       });
       setMatrix(result);
-      setMatrixMeta({ audience, brand: brandContext, generations: selectedGenerations, topicFocus, sourcesType, hasUploadedDocuments });
-      const generatedRecentId = `generated:${brandContext.toLowerCase()}|${audience.toLowerCase()}|${topicFocus.toLowerCase()}`;
+      setMatrixMeta({
+        audience: audienceValue,
+        brand: brandContextValue,
+        generations: generationsValue,
+        topicFocus: topicFocusValue,
+        sourcesType: sourcesTypeValue,
+        hasUploadedDocuments,
+      });
+      const generatedRecentId = `generated:${brandContextValue.toLowerCase()}|${audienceValue.toLowerCase()}|${topicFocusValue.toLowerCase()}`;
       const generatedRecentItem: CulturalRecentResult = {
         id: generatedRecentId,
-        title: (brandContext || 'Generated Cultural Analysis').trim(),
-        description: `Audience: ${(audience || 'Not specified').trim()}`,
+        title: (brandContextValue || 'Generated Cultural Analysis').trim(),
+        description: `Audience: ${(audienceValue || 'Not specified').trim()}`,
         matrix: result,
         matrixMeta: {
-          audience,
-          brand: brandContext,
-          generations: selectedGenerations,
-          topicFocus,
-          sourcesType,
+          audience: audienceValue,
+          brand: brandContextValue,
+          generations: generationsValue,
+          topicFocus: topicFocusValue,
+          sourcesType: sourcesTypeValue,
           hasUploadedDocuments,
         },
       };
@@ -957,19 +991,15 @@ export default function CulturalArchaeologist() {
       saveRecentResult(APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST, generatedRecentItem);
       setRecentResultsRefreshNonce((prev) => prev + 1);
 
-      // Persist generated searches directly to Supabase
       try {
-        // 1. Grab the silent data
         const { device, location, ip_address } = await getUserTelemetry();
-
-        // 2. Inject it into the database payload
         const { error: saveError } = await supabase.from('searches').insert([
           {
-            brand: brandContext || null,
-            audience,
-            topicFocus: topicFocus || null,
-            generations: selectedGenerations,
-            sourcesType,
+            brand: brandContextValue || null,
+            audience: audienceValue,
+            topicFocus: topicFocusValue || null,
+            generations: generationsValue,
+            sourcesType: sourcesTypeValue,
             results: result,
             device,
             location,
@@ -979,13 +1009,11 @@ export default function CulturalArchaeologist() {
         if (saveError) {
           throw saveError;
         }
-        // Optionally, refresh saved matrices here if you want instant UI update
       } catch (saveErr) {
         logger.warn('Failed to save cultural search to Supabase', saveErr);
         setSaveWarning('Insights generated, but this report could not be saved right now.');
       }
 
-      // Play chime sound using Web Audio API
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioContext();
@@ -1015,9 +1043,12 @@ export default function CulturalArchaeologist() {
         logger.warn('Failed to play completion sound', e);
       }
 
-      // Start background deep dives
-      runBackgroundDeepDives(result, { audience, brand: brandContext, generations: selectedGenerations, topicFocus });
-
+      runBackgroundDeepDives(result, {
+        audience: audienceValue,
+        brand: brandContextValue,
+        generations: generationsValue,
+        topicFocus: topicFocusValue,
+      });
     } catch (err: unknown) {
       const normalized = normalizeAppError(err);
       logger.error('Failed to generate cultural report', { err, normalized });
@@ -1025,7 +1056,6 @@ export default function CulturalArchaeologist() {
     } finally {
       const searchEnd = Date.now();
       const duration = searchEnd - searchStart;
-      // Update average load time (simple moving average, last 10 loads)
       loadTimesRef.current.push(duration);
       if (loadTimesRef.current.length > 10) loadTimesRef.current.shift();
       const avg = loadTimesRef.current.reduce((a, b) => a + b, 0) / loadTimesRef.current.length;
@@ -1035,6 +1065,61 @@ export default function CulturalArchaeologist() {
       await new Promise((resolve) => setTimeout(resolve, 220));
       setIsLoading(false);
     }
+  };
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const pendingBrand = brandInput.trim();
+    const brandTokensForGenerate = pendingBrand && !normalizedBrands.some((item) => item.toLowerCase() === pendingBrand.toLowerCase())
+      ? [...normalizedBrands, pendingBrand]
+      : normalizedBrands;
+    const brandContext = brandTokensForGenerate.join(', ');
+
+    if (pendingBrand) {
+      setSelectedBrands(brandTokensForGenerate);
+      setBrandInput('');
+    }
+
+    setShowValidation(true);
+    if (!audience.trim()) return;
+    await runCulturalMatrixGeneration({
+      actionName: 'generate-cultural-matrix',
+      audienceValue: audience,
+      brandContextValue: brandContext,
+      generationsValue: selectedGenerations,
+      topicFocusValue: topicFocus,
+      filesValue: files,
+      sourcesTypeValue: sourcesType,
+    });
+  };
+
+  const handleRerunAnalysis = async () => {
+    if (!hasActiveResultFilters || isLoading) return;
+    const rerunAudience = (matrixMeta?.audience || audience || '').trim();
+    if (!rerunAudience) return;
+
+    const rerunBrand = matrixMeta?.brand ?? normalizedBrands.join(', ');
+    const rerunGenerations = matrixMeta?.generations ?? selectedGenerations;
+    const rerunTopic = matrixMeta?.topicFocus ?? topicFocus;
+    const rerunSources = matrixMeta?.sourcesType ?? sourcesType;
+    console.log('[CulturalArchaeologist] Triggering filtered rerun analysis.', {
+      rerunAudience,
+      rerunBrand,
+      rerunGenerations,
+      rerunTopic,
+      rerunSources,
+      activeRerunFilters,
+    });
+    await runCulturalMatrixGeneration({
+      actionName: 'rerun-cultural-matrix',
+      audienceValue: rerunAudience,
+      brandContextValue: rerunBrand,
+      generationsValue: rerunGenerations,
+      topicFocusValue: rerunTopic,
+      filesValue: files,
+      sourcesTypeValue: rerunSources,
+      rerunFilters: activeRerunFilters,
+    });
   };
 
   const runBackgroundDeepDives = async (currentMatrix: CulturalMatrix, context: MatrixContext) => {
@@ -2926,7 +3011,7 @@ export default function CulturalArchaeologist() {
                 </div>
               </div>
 
-              <div className="mb-8 p-4 bg-zinc-50 border border-zinc-200 rounded-2xl no-print">
+              <div className="mb-8 p-4 pb-14 bg-zinc-50 border border-zinc-200 rounded-2xl no-print relative">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h4 className="text-sm font-semibold text-zinc-900">Result Filters</h4>
                   {activeFilterCount > 0 && (
@@ -3090,6 +3175,18 @@ export default function CulturalArchaeologist() {
                     </div>
                   </div>
                 </div>
+                {hasActiveResultFilters && (
+                  <button
+                    type="button"
+                    onClick={handleRerunAnalysis}
+                    disabled={isLoading}
+                    data-testid="rerun-analysis-button"
+                    className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-700 hover:border-zinc-400 hover:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                    Rerun Analysis
+                  </button>
+                )}
               </div>
 
               {!hasVisibleInsights && (

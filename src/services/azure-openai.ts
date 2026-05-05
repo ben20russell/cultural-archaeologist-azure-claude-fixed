@@ -94,6 +94,13 @@ export interface CulturalMatrix {
   sources: Source[];
 }
 
+export interface CulturalRerunFilters {
+  confidenceLevels?: Array<'low' | 'medium' | 'high'>;
+  evidenceTypes?: Array<'known' | 'inferred' | 'speculative'>;
+  trendStages?: Array<'emerging' | 'peaking' | 'declining'>;
+  sourceTypes?: string[];
+}
+
 export interface BrandResearchAudience {
   audience: string;
   priority: string;
@@ -2208,7 +2215,15 @@ const CulturalRawSignalsSchema = z.object({
   sources: z.array(SourceSchema),
 });
 
-export async function generateCulturalMatrix(audience: string, brand?: string, generations?: string[], topicFocus?: string, files?: UploadedFile[], sourcesType?: string[]): Promise<CulturalMatrix> {
+export async function generateCulturalMatrix(
+  audience: string,
+  brand?: string,
+  generations?: string[],
+  topicFocus?: string,
+  files?: UploadedFile[],
+  sourcesType?: string[],
+  rerunFilters?: CulturalRerunFilters
+): Promise<CulturalMatrix> {
   const contextStr = brand ? ` in the context of the brand/category: "${brand}"` : "";
   const topicStr = topicFocus ? `\n\nCRITICAL: You MUST focus all your insights specifically on the topic of "${topicFocus}". Only show results relevant to this topic.` : "";
   const generationStr = generations && generations.length > 0
@@ -2221,6 +2236,35 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
   const sourcesTypeStr = sourcesType && sourcesType.length > 0
     ? `\n\nCRITICAL: You MUST restrict your sources and insights to be derived primarily from ${sourcesType.join(', ')} sources. Adjust your tone, findings, and the specific cultural signals you highlight to reflect the unique perspective, narratives, and biases of these media types.`
     : "";
+  const normalizedRerunFilters: CulturalRerunFilters = {
+    confidenceLevels: Array.from(new Set((rerunFilters?.confidenceLevels || []).map((item) => item.trim().toLowerCase() as 'low' | 'medium' | 'high')))
+      .filter((item) => item === 'low' || item === 'medium' || item === 'high'),
+    evidenceTypes: Array.from(new Set((rerunFilters?.evidenceTypes || []).map((item) => item.trim().toLowerCase() as 'known' | 'inferred' | 'speculative')))
+      .filter((item) => item === 'known' || item === 'inferred' || item === 'speculative'),
+    trendStages: Array.from(new Set((rerunFilters?.trendStages || []).map((item) => item.trim().toLowerCase() as 'emerging' | 'peaking' | 'declining')))
+      .filter((item) => item === 'emerging' || item === 'peaking' || item === 'declining'),
+    sourceTypes: Array.from(new Set((rerunFilters?.sourceTypes || []).map((item) => item.trim()).filter(Boolean))),
+  };
+  const hasRerunFilters =
+    normalizedRerunFilters.confidenceLevels!.length > 0 ||
+    normalizedRerunFilters.evidenceTypes!.length > 0 ||
+    normalizedRerunFilters.trendStages!.length > 0 ||
+    normalizedRerunFilters.sourceTypes!.length > 0;
+  const rerunFiltersStr = hasRerunFilters
+    ? `\n\nCRITICAL FILTERED RERUN MODE:
+    This is a rerun targeted to the currently selected filters.
+    Return as many matching insights as can be supported by credible evidence.
+    If evidence is insufficient, return fewer insights. Never fabricate to fill quota.
+    Enforce these filters on every matrix item:
+    - confidenceLevel must be one of: ${(normalizedRerunFilters.confidenceLevels || []).join(', ') || 'any'}
+    - evidence marker in text must include one of: ${(normalizedRerunFilters.evidenceTypes || []).join(', ') || 'any'}
+    - trendLifecycle must be one of: ${(normalizedRerunFilters.trendStages || []).join(', ') || 'any'}
+    - sourceType should map to one of: ${(normalizedRerunFilters.sourceTypes || []).join(', ') || 'any'}`
+    : "";
+  console.log('[cultural-matrix] Filtered rerun settings', {
+    hasRerunFilters,
+    normalizedRerunFilters,
+  });
 
   const systemInstruction = composeSystemPrompt(
     'You are an expert cultural strategist and marketer. Your goal is to provide deep, accurate, and actionable cultural insights for the requested audience based on recent data. Highlight results that are extremely unique to this audience by setting isHighlyUnique to true (comparing them against demographic peers who are NOT involved in this specific brand, industry, or topic). Before listing the final artifacts, you MUST write a two-paragraph sociological_analysis explaining the socio-economic, historical, and cultural forces shaping this specific audience, and use that summary to derive the final data points. Do not expose private chain-of-thought; provide only the concise sociological summary in the sociological_analysis field.',
@@ -2257,7 +2301,7 @@ export async function generateCulturalMatrix(audience: string, brand?: string, g
     console.warn("Could not fetch Reddit verbatim:", e);
   }
 
-  const prompt = `Generate a comprehensive cultural archaeologist report for the following audience: "${audience}"${contextStr}.${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
+  const prompt = `Generate a comprehensive cultural archaeologist report for the following audience: "${audience}"${contextStr}.${topicStr}${generationStr}${filesStr}${sourcesTypeStr}${rerunFiltersStr}
     
     Ensure the research and context are recent (from the last couple of years, 2024-2026).
     CRITICAL: For each category, provide at least 6-10 highly detailed and specific insights to ensure a rich and comprehensive report.
@@ -2330,6 +2374,8 @@ Rules:
 - Label uncertain language in text fields with [KNOWN], [INFERRED], [SPECULATIVE].
 - For vocabulary lists, keep entries concise and practical for immediate copywriting use.
 - Ensure sources remain credible and recent, flagging stale evidence when necessary.
+- In filtered rerun mode, keep only insights that satisfy the selected filters exactly.
+- In filtered rerun mode, if evidence does not support enough insights, return fewer instead of guessing.
 - SOURCE GROUNDING:
   - Every claim in demographics and behaviors MUST be supported by the Evidence Digest signals.
   - Use only the exact URLs listed below for sources; do not invent or rewrite URLs.
