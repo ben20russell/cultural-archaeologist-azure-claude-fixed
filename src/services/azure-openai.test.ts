@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBrandModeSubQueries,
   deriveRecentNewsFromSources,
+  evaluateQualityGateDecision,
   extractUrlsFromEvidenceDigest,
   formatDevilsAdvocateLens,
   getDeploymentCandidatesFromEnv,
+  resolveBrandEvidenceMode,
   scoreEvidenceDomain,
   sanitizeDemographicClaim,
   shouldRetryWithAlternateDeployment,
@@ -167,5 +169,51 @@ describe('demographic claim sanitization', () => {
     expect(sanitizeDemographicClaim('[SPECULATIVE] Predominantly Gen Alpha households')).toBeNull();
     expect(sanitizeDemographicClaim('Likely mostly women')).toBe('Likely mostly women');
     expect(sanitizeDemographicClaim('18-34')).toBe('18-34');
+  });
+});
+
+describe('structured quality gate evaluation', () => {
+  it('requests a retry when quality gate fails before final attempt', () => {
+    const decision = evaluateQualityGateDecision(
+      { results: [] },
+      (payload) => payload.results.length > 0,
+      0,
+      2
+    );
+
+    expect(decision).toBe('retry');
+  });
+
+  it('fails when quality gate still fails on the final attempt', () => {
+    const decision = evaluateQualityGateDecision(
+      { results: [] },
+      (payload) => payload.results.length > 0,
+      2,
+      2
+    );
+
+    expect(decision).toBe('fail');
+  });
+
+  it('accepts payload when no quality gate is provided', () => {
+    const decision = evaluateQualityGateDecision({ results: [] }, undefined, 0, 2);
+    expect(decision).toBe('accept');
+  });
+});
+
+describe('brand evidence mode resolution', () => {
+  it('uses strict mode when evidence digest is available', () => {
+    const mode = resolveBrandEvidenceMode('Query: Patagonia\nResults:\nStrong evidence', '');
+    expect(mode).toBe('strict');
+  });
+
+  it('uses strict mode when website grounding exists even if digest is unavailable', () => {
+    const mode = resolveBrandEvidenceMode('Evidence digest unavailable.', 'GROUNDING CONTEXT FROM OFFICIAL BRAND/CORPORATE WEBSITES');
+    expect(mode).toBe('strict');
+  });
+
+  it('uses inferred fallback mode when both evidence sources are unavailable', () => {
+    const mode = resolveBrandEvidenceMode('Evidence digest unavailable.', '');
+    expect(mode).toBe('inferred-fallback');
   });
 });

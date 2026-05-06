@@ -848,6 +848,15 @@ export function buildBrandModeSubQueries(topic: string): string[] {
   ];
 }
 
+export function resolveBrandEvidenceMode(
+  evidenceDigest: string,
+  websiteGroundingContext: string
+): 'strict' | 'inferred-fallback' {
+  const hasEvidenceDigest = (evidenceDigest || '').trim() !== '' && evidenceDigest !== 'Evidence digest unavailable.';
+  const hasWebsiteGrounding = (websiteGroundingContext || '').trim().length > 0;
+  return hasEvidenceDigest || hasWebsiteGrounding ? 'strict' : 'inferred-fallback';
+}
+
 function filterAndWeightEvidence(items: z.infer<typeof EvidenceItemSchema>[]): string {
   const scored = items
     .map((item) => {
@@ -901,10 +910,15 @@ async function runStructuredCall<T extends z.ZodTypeAny>(params: {
       const text = response.choices[0].message.content || '{}';
       const parsed = params.schema.parse(JSON.parse(text));
 
-      if (params.qualityGate && !params.qualityGate(parsed)) {
-        if (attempt < maxRetries) {
-          continue;
-        }
+      const qualityDecision = evaluateQualityGateDecision(parsed, params.qualityGate, attempt, maxRetries);
+      if (qualityDecision === 'retry') {
+        continue;
+      }
+      if (qualityDecision === 'fail') {
+        lastError = new Error(
+          `Structured response failed quality gate for schema "${params.schemaName}" after ${maxRetries + 1} attempt(s).`
+        );
+        break;
       }
 
       updateSessionBrief(params.mode, parsed);
@@ -918,6 +932,24 @@ async function runStructuredCall<T extends z.ZodTypeAny>(params: {
   }
 
   throw lastError instanceof Error ? lastError : new Error('Structured call failed after retries.');
+}
+
+export function evaluateQualityGateDecision<T>(
+  parsed: T,
+  qualityGate: ((parsed: T) => boolean) | undefined,
+  attempt: number,
+  maxRetries: number
+): 'accept' | 'retry' | 'fail' {
+  if (!qualityGate) {
+    return 'accept';
+  }
+  if (qualityGate(parsed)) {
+    return 'accept';
+  }
+  if (attempt < maxRetries) {
+    return 'retry';
+  }
+  return 'fail';
 }
 
 async function createTargetedSubQueries(topic: string, mode: SessionMode): Promise<string[]> {
@@ -2577,6 +2609,23 @@ export async function generateBrandResearchMatrix(
     `Brands: ${brandContext}; Audience: ${audience || 'n/a'}; Topic: ${topicFocus || 'n/a'}; Generations: ${(generations || []).join(', ') || 'n/a'}`,
     'brand'
   );
+  const evidenceMode = resolveBrandEvidenceMode(evidenceDigest, websiteGroundingContext);
+  const evidenceRulesBlock =
+    evidenceMode === 'strict'
+      ? `- CRITICAL ANTI-HALLUCINATION RULES:
+  - You are an EXTRATOR, not a writer.
+  - DO NOT rely on your pre-trained knowledge.
+  - If a specific piece of information (like a mission statement, recent campaign, or strategic moat) is NOT explicitly mentioned in the "Evidence digest" or "First-Party Context", you MUST output null or an empty array.
+  - DO NOT guess, infer, or hallucinate metrics, taglines, or campaigns.`
+      : `- EVIDENCE BACKEND STATUS: Live evidence digest is unavailable right now.
+  - Use best-effort strategic analysis grounded in broadly known brand signals.
+  - Label uncertain points with [INFERRED] and avoid fabricated precision.
+  - Do not leave core sections empty just because the digest is unavailable.
+  - Prefer directional insights over "N/A" placeholders when a reasonable inference exists.
+  - Keep uncertainty explicit and conservative.`;
+  if (evidenceMode === 'inferred-fallback') {
+    console.warn('[brand-research] Falling back to inferred mode because evidence digest and website grounding are unavailable.');
+  }
 
   const urlsToScrape = brands.map((b) => b.website).filter(Boolean) as string[];
   let firstPartyContext = '';
@@ -2593,11 +2642,7 @@ Requirements:
 - Use the same research rigor: recent evidence (2024-2026), explicit uncertainty handling, and source grounding.
 - For "strategicMoatsStrengths" and "potentialThreatsWeaknesses", heavily weigh financial filings, investor relations data, and aggregate review data. Look past marketing fluff to find actual business realities.
 - For "brandPositioning" and "targetAudiences", prioritize quotes and strategies mentioned by executives in interviews or trade press.
-- CRITICAL ANTI-HALLUCINATION RULES:
-  - You are an EXTRATOR, not a writer.
-  - DO NOT rely on your pre-trained knowledge.
-  - If a specific piece of information (like a mission statement, recent campaign, or strategic moat) is NOT explicitly mentioned in the "Evidence digest" or "First-Party Context", you MUST output null or an empty array.
-  - DO NOT guess, infer, or hallucinate metrics, taglines, or campaigns.
+${evidenceRulesBlock}
 - Return one complete result object per brand in "results".
 - Each brand result must include:
   1) highLevelSummary (2-4 sentence executive summary of strategy, positioning, and market posture)
