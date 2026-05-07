@@ -179,6 +179,57 @@ const evidenceLabelChipClass = (label: EvidenceTagLabel): string => {
   return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
 };
 
+const buildTextFragmentHref = (baseUrl: string | undefined, claimText?: string): string => {
+  const safeBase = toSafeExternalHref(baseUrl || '');
+  if (!safeBase || !claimText) {
+    return safeBase;
+  }
+
+  const normalizedClaim = claimText.replace(/\s+/g, ' ').trim();
+  if (!normalizedClaim) {
+    return safeBase;
+  }
+
+  const fragmentSnippet = normalizedClaim.slice(0, 120).trim();
+  if (!fragmentSnippet) {
+    return safeBase;
+  }
+
+  const delimiter = safeBase.includes('#') ? '&' : '#';
+  return `${safeBase}${delimiter}:~:text=${encodeURIComponent(fragmentSnippet)}`;
+};
+
+const renderEvidenceLabelChip = (
+  tag: EvidenceTagLabel,
+  key: string,
+  inferredEvidenceUrl?: string,
+  claimText?: string
+): React.ReactNode => {
+  const chipClass = `inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`;
+  if (tag === 'inferred' && inferredEvidenceUrl) {
+    const deepLinkHref = buildTextFragmentHref(inferredEvidenceUrl, claimText);
+    return (
+      <a
+        key={key}
+        aria-label="Inferred evidence"
+        href={deepLinkHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${chipClass} hover:underline`}
+        title="Open evidence source and highlight related text when supported by your browser"
+      >
+        {tag}
+      </a>
+    );
+  }
+
+  return (
+    <span key={key} className={chipClass}>
+      {tag}
+    </span>
+  );
+};
+
 const shouldShowSplashOnInit = (isDirectBrandNavigatorRoute: boolean): boolean =>
   !isDirectBrandNavigatorRoute && !isTestEnvironment();
 
@@ -2661,6 +2712,27 @@ const buildRecentHeadlines = (brandResult: BrandResultEntry): ParsedHeadline[] =
   return deduped.slice(0, 8);
 };
 
+const getPrimaryInferredEvidenceUrl = (
+  brandResult: BrandResultEntry,
+  displayNewsItems: ParsedHeadline[]
+): string | undefined => {
+  const sourceCandidates = (brandResult.sources || [])
+    .map((source) => normalizeExternalHttpUrl(source?.url))
+    .filter((url): url is string => Boolean(url));
+  if (sourceCandidates.length > 0) {
+    return sourceCandidates[0];
+  }
+
+  const newsCandidates = (displayNewsItems || [])
+    .map((item) => normalizeExternalHttpUrl(item?.url))
+    .filter((url): url is string => Boolean(url));
+  if (newsCandidates.length > 0) {
+    return newsCandidates[0];
+  }
+
+  return undefined;
+};
+
 const sanitizeBrandResearchMatrix = (rawMatrix: BrandResearchMatrix): BrandResearchMatrix => {
   const sanitizedResults = (rawMatrix.results || []).map((result, index) => {
     const brandName = result.brandName || `Brand ${index + 1}`;
@@ -2864,6 +2936,7 @@ function BrandResultCard({
     ? pickBrandPressReleaseFallback(brandResult, brandName)
     : null;
   const displayNewsItems = fallbackPressRelease ? [fallbackPressRelease] : recentNewsItems;
+  const inferredEvidenceUrl = getPrimaryInferredEvidenceUrl(brandResult, displayNewsItems);
 
   logger.debug('[BrandNavigator] Rendering brand result card with validated links.', {
     brandName,
@@ -2882,32 +2955,32 @@ function BrandResultCard({
         className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm text-zinc-700"
       >
         <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
-          <BrandResultRichText value={brandResult.highLevelSummary} />
+          <BrandResultRichText value={brandResult.highLevelSummary} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Brand mission" sectionKey="brandMission" highlighted={highlightedSections.includes('brandMission')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultRichText value={brandResult.brandMission} />
+          <BrandResultRichText value={brandResult.brandMission} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" highlighted={highlightedSections.includes('brandPositioning')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
           <div className="space-y-2">
-            <BrandResultLabeledBulletList label="Taglines" items={positioning.taglines || []} />
-            <BrandResultLabeledBulletList label="Key messages and claims" items={positioning.keyMessagesAndClaims || []} />
-            <BrandResultInlineField label="Value proposition" value={positioning.valueProposition} />
-            <BrandResultInlineField label="Voice and tone" value={positioning.voiceAndTone} />
+            <BrandResultLabeledBulletList label="Taglines" items={positioning.taglines || []} inferredEvidenceUrl={inferredEvidenceUrl} />
+            <BrandResultLabeledBulletList label="Key messages and claims" items={positioning.keyMessagesAndClaims || []} inferredEvidenceUrl={inferredEvidenceUrl} />
+            <BrandResultInlineField label="Value proposition" value={positioning.valueProposition} inferredEvidenceUrl={inferredEvidenceUrl} />
+            <BrandResultInlineField label="Voice and tone" value={positioning.voiceAndTone} inferredEvidenceUrl={inferredEvidenceUrl} />
           </div>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Key offerings/products/services" sectionKey="keyOfferingsProductsServices" highlighted={highlightedSections.includes('keyOfferingsProductsServices')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultBulletList items={brandResult.keyOfferingsProductsServices || []} />
+          <BrandResultBulletList items={brandResult.keyOfferingsProductsServices || []} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Strategic moats (strengths)" sectionKey="strategicMoatsStrengths" highlighted={highlightedSections.includes('strategicMoatsStrengths')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultBulletList items={brandResult.strategicMoatsStrengths || []} />
+          <BrandResultBulletList items={brandResult.strategicMoatsStrengths || []} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Potential threats (weaknesses)" sectionKey="potentialThreatsWeaknesses" highlighted={highlightedSections.includes('potentialThreatsWeaknesses')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultBulletList items={brandResult.potentialThreatsWeaknesses || []} />
+          <BrandResultBulletList items={brandResult.potentialThreatsWeaknesses || []} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Target audiences" sectionKey="targetAudiences" highlighted={highlightedSections.includes('targetAudiences')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
@@ -2920,17 +2993,18 @@ function BrandResultCard({
                 brandIndex={brandIndex}
                 audienceIndex={audIndex}
                 onAudienceDeepDive={onAudienceDeepDive}
+                inferredEvidenceUrl={inferredEvidenceUrl}
               />
             ))}
           </div>
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Recent campaigns" sectionKey="recentCampaigns" highlighted={highlightedSections.includes('recentCampaigns')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultBulletList items={brandResult.recentCampaigns || []} />
+          <BrandResultBulletList items={brandResult.recentCampaigns || []} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Key marketing channels" sectionKey="keyMarketingChannels" highlighted={highlightedSections.includes('keyMarketingChannels')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <BrandResultBulletList items={brandResult.keyMarketingChannels || []} />
+          <BrandResultBulletList items={brandResult.keyMarketingChannels || []} inferredEvidenceUrl={inferredEvidenceUrl} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Social media channels" sectionKey="socialMediaChannels" highlighted={highlightedSections.includes('socialMediaChannels')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
@@ -3000,21 +3074,23 @@ function TargetAudienceCard({
   brandIndex,
   audienceIndex,
   onAudienceDeepDive,
+  inferredEvidenceUrl,
 }: {
   audience: BrandResultAudience;
   brandName: string;
   brandIndex: number;
   audienceIndex: number;
   onAudienceDeepDive: (audienceLabel: string, brandName: string) => void;
+  inferredEvidenceUrl?: string;
 }) {
   const audienceLabel = audience.audience || 'N/A';
   return (
     <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-5 shadow-[0_1px_6px_-3px_rgba(0,0,0,0.08)] h-fit self-start">
-      <BrandResultInlineField label="Audience" value={audienceLabel} />
-      <BrandResultInlineField label="Priority of audience" value={audience.priority} />
-      <BrandResultInlineField label="Role to consumers" value={audience.inferredRoleToConsumers} />
-      <BrandResultLabeledBulletList label="Functional benefits" items={audience.functionalBenefits || []} />
-      <BrandResultLabeledBulletList label="Emotional benefits" items={audience.emotionalBenefits || []} />
+      <BrandResultInlineField label="Audience" value={audienceLabel} inferredEvidenceUrl={inferredEvidenceUrl} />
+      <BrandResultInlineField label="Priority of audience" value={audience.priority} inferredEvidenceUrl={inferredEvidenceUrl} />
+      <BrandResultInlineField label="Role to consumers" value={audience.inferredRoleToConsumers} inferredEvidenceUrl={inferredEvidenceUrl} />
+      <BrandResultLabeledBulletList label="Functional benefits" items={audience.functionalBenefits || []} inferredEvidenceUrl={inferredEvidenceUrl} />
+      <BrandResultLabeledBulletList label="Emotional benefits" items={audience.emotionalBenefits || []} inferredEvidenceUrl={inferredEvidenceUrl} />
       <button
         type="button"
         data-testid={`deep-dive-audience-${brandIndex}-${audienceIndex}`}
@@ -3068,43 +3144,29 @@ function BrandCriteriaSection({
   );
 }
 
-function BrandResultInlineField({ label, value }: { label: string; value?: string }) {
+function BrandResultInlineField({ label, value, inferredEvidenceUrl }: { label: string; value?: string; inferredEvidenceUrl?: string }) {
   const parsed = extractEvidenceTags(value || '');
   const displayValue = parsed.cleanText || 'N/A';
   return (
     <p>
       <span className="font-medium text-zinc-900">{label}:</span> {displayValue}
-      {parsed.labels.map((tag) => (
-        <span
-          key={`${label}-${tag}`}
-          className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
-        >
-          {tag}
-        </span>
-      ))}
+      {parsed.labels.map((tag) => renderEvidenceLabelChip(tag, `${label}-${tag}`, inferredEvidenceUrl, displayValue))}
     </p>
   );
 }
 
-function BrandResultRichText({ value }: { value?: string }) {
+function BrandResultRichText({ value, inferredEvidenceUrl }: { value?: string; inferredEvidenceUrl?: string }) {
   const parsed = extractEvidenceTags(value || '');
   const displayValue = parsed.cleanText || 'N/A';
   return (
     <p>
       {displayValue}
-      {parsed.labels.map((tag) => (
-        <span
-          key={`rich-${displayValue}-${tag}`}
-          className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
-        >
-          {tag}
-        </span>
-      ))}
+      {parsed.labels.map((tag) => renderEvidenceLabelChip(tag, `rich-${displayValue}-${tag}`, inferredEvidenceUrl, displayValue))}
     </p>
   );
 }
 
-function BrandResultBulletList({ items }: { items: string[] }) {
+function BrandResultBulletList({ items, inferredEvidenceUrl }: { items: string[]; inferredEvidenceUrl?: string }) {
   const INITIAL_SHOW = 4;
   const [isExpanded, setIsExpanded] = useState(false);
   const normalizedItems = (items || []).map((item) => (item || '').trim()).filter(Boolean);
@@ -3124,14 +3186,7 @@ function BrandResultBulletList({ items }: { items: string[] }) {
           return (
             <li key={`${item}-${index}`}>
               {displayValue}
-              {parsed.labels.map((tag) => (
-                <span
-                  key={`${item}-${index}-${tag}`}
-                  className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
-                >
-                  {tag}
-                </span>
-              ))}
+              {parsed.labels.map((tag) => renderEvidenceLabelChip(tag, `${item}-${index}-${tag}`, inferredEvidenceUrl, displayValue))}
             </li>
           );
         })}
@@ -3152,11 +3207,11 @@ function BrandResultBulletList({ items }: { items: string[] }) {
   );
 }
 
-function BrandResultLabeledBulletList({ label, items }: { label: string; items: string[] }) {
+function BrandResultLabeledBulletList({ label, items, inferredEvidenceUrl }: { label: string; items: string[]; inferredEvidenceUrl?: string }) {
   return (
     <div>
       <p className="font-medium text-zinc-900">{label}:</p>
-      <BrandResultBulletList items={items} />
+      <BrandResultBulletList items={items} inferredEvidenceUrl={inferredEvidenceUrl} />
     </div>
   );
 }

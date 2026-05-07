@@ -321,6 +321,57 @@ describe('BrandNavigator', () => {
     expect(inferredBadges.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('renders inferred chips as hyperlinks to evidence sources when available', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Emirates',
+          highLevelSummary: 'Premium network carrier with strong global visibility. [INFERRED] Conversion efficiency focus is increasing.',
+          brandMission: 'Mission statement is directionally consistent across channels. [INFERRED]',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [],
+          sources: [
+            {
+              title: 'Emirates investor relations',
+              url: 'https://www.emirates.com/media-centre/',
+            },
+          ],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Emirates' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    const inferredLinks = await screen.findAllByRole('link', { name: /inferred evidence/i });
+    expect(inferredLinks.length).toBeGreaterThanOrEqual(2);
+    inferredLinks.forEach((link) => {
+      const href = link.getAttribute('href') || '';
+      expect(href.startsWith('https://www.emirates.com/media-centre/')).toBe(true);
+      expect(href).toContain('#:~:text=');
+    });
+  });
+
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',
