@@ -102,6 +102,8 @@ type BrandResultSectionKey =
   | 'socialMediaChannels'
   | 'recentNews';
 
+type EvidenceTagLabel = 'known' | 'inferred' | 'speculative' | 'analogy';
+
 const BRAND_RESULT_SECTION_KEYS: BrandResultSectionKey[] = [
   'highLevelSummary',
   'brandMission',
@@ -137,6 +139,45 @@ const SOURCES_TYPES = [
 
 const isTestEnvironment = (): boolean =>
   typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
+
+const extractEvidenceTags = (value: string): { cleanText: string; labels: EvidenceTagLabel[] } => {
+  if (!value) {
+    return { cleanText: '', labels: [] };
+  }
+
+  const labels: EvidenceTagLabel[] = [];
+  const markerPattern = /\[(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)(?:[^\]]*)\]|\[(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)(?=[^\]]*$)|\b(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)\b(?=\s*[:;\-]|\s*$|[.)\]])/gi;
+  let match: RegExpExecArray | null = markerPattern.exec(value);
+
+  while (match) {
+    const rawLabel = (match[1] || match[2] || match[3] || '').toLowerCase();
+    const normalizedLabel: EvidenceTagLabel = rawLabel === 'infered' ? 'inferred' : (rawLabel as EvidenceTagLabel);
+    if (!labels.includes(normalizedLabel)) {
+      labels.push(normalizedLabel);
+    }
+    match = markerPattern.exec(value);
+  }
+
+  const cleanText = value
+    .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)(?:[^\]]*)\]\s*/gi, '')
+    .replace(/\[(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)\s*[:;\-]?\s*/gi, '')
+    .replace(/\b(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)\b\s*[:;\-]\s*/gi, '')
+    .replace(/\.(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)\s*$/i, '.')
+    .replace(/\s+(KNOWN|INFERRED|INFERED|SPECULATIVE|ANALOGY)\s*$/i, '')
+    .replace(/\[\s*\]/g, '')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return { cleanText, labels };
+};
+
+const evidenceLabelChipClass = (label: EvidenceTagLabel): string => {
+  if (label === 'analogy') {
+    return 'bg-zinc-100 text-zinc-600 border border-zinc-200';
+  }
+  return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+};
 
 const shouldShowSplashOnInit = (isDirectBrandNavigatorRoute: boolean): boolean =>
   !isDirectBrandNavigatorRoute && !isTestEnvironment();
@@ -2841,11 +2882,11 @@ function BrandResultCard({
         className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-sm text-zinc-700"
       >
         <BrandCriteriaSection title="High-level summary" sectionKey="highLevelSummary" highlighted={highlightedSections.includes('highLevelSummary')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
-          <p>{brandResult.highLevelSummary || 'N/A'}</p>
+          <BrandResultRichText value={brandResult.highLevelSummary} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Brand mission" sectionKey="brandMission" highlighted={highlightedSections.includes('brandMission')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands}>
-          <p>{brandResult.brandMission || 'N/A'}</p>
+          <BrandResultRichText value={brandResult.brandMission} />
         </BrandCriteriaSection>
 
         <BrandCriteriaSection title="Brand positioning" sectionKey="brandPositioning" highlighted={highlightedSections.includes('brandPositioning')} canCompareAcrossBrands={canCompareAcrossBrands} onRequestCompareAcrossBrands={onRequestCompareAcrossBrands} className="lg:col-span-2">
@@ -3028,9 +3069,37 @@ function BrandCriteriaSection({
 }
 
 function BrandResultInlineField({ label, value }: { label: string; value?: string }) {
+  const parsed = extractEvidenceTags(value || '');
+  const displayValue = parsed.cleanText || 'N/A';
   return (
     <p>
-      <span className="font-medium text-zinc-900">{label}:</span> {value || 'N/A'}
+      <span className="font-medium text-zinc-900">{label}:</span> {displayValue}
+      {parsed.labels.map((tag) => (
+        <span
+          key={`${label}-${tag}`}
+          className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
+        >
+          {tag}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function BrandResultRichText({ value }: { value?: string }) {
+  const parsed = extractEvidenceTags(value || '');
+  const displayValue = parsed.cleanText || 'N/A';
+  return (
+    <p>
+      {displayValue}
+      {parsed.labels.map((tag) => (
+        <span
+          key={`rich-${displayValue}-${tag}`}
+          className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
+        >
+          {tag}
+        </span>
+      ))}
     </p>
   );
 }
@@ -3049,9 +3118,23 @@ function BrandResultBulletList({ items }: { items: string[] }) {
   return (
     <>
       <ul className="list-disc pl-5 space-y-1">
-        {visibleItems.map((item, index) => (
-          <li key={`${item}-${index}`}>{item}</li>
-        ))}
+        {visibleItems.map((item, index) => {
+          const parsed = extractEvidenceTags(item);
+          const displayValue = parsed.cleanText || 'N/A';
+          return (
+            <li key={`${item}-${index}`}>
+              {displayValue}
+              {parsed.labels.map((tag) => (
+                <span
+                  key={`${item}-${index}-${tag}`}
+                  className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(tag)}`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </li>
+          );
+        })}
       </ul>
       {hasMoreItems ? (
         <button

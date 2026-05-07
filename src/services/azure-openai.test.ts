@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildBrandEvidenceRulesBlock,
   buildBrandModeSubQueries,
   deriveRecentNewsFromSources,
   evaluateQualityGateDecision,
@@ -215,5 +216,18 @@ describe('brand evidence mode resolution', () => {
   it('uses inferred fallback mode when both evidence sources are unavailable', () => {
     const mode = resolveBrandEvidenceMode('Evidence digest unavailable.', '');
     expect(mode).toBe('inferred-fallback');
+  });
+});
+
+describe('brand evidence rules prompt mapping', () => {
+  it('references the injected grounding context header in strict mode', () => {
+    const block = buildBrandEvidenceRulesBlock('strict');
+    expect(block).toContain('GROUNDING CONTEXT FROM OFFICIAL BRAND/CORPORATE WEBSITES');
+    expect(block).toContain('Evidence digest');
+  });
+
+  it('allows explicit inference with [INFERRED] labels in strict mode', () => {
+    const block = buildBrandEvidenceRulesBlock('strict');
+    expect(block).toContain('MUST label it with [INFERRED]');
   });
 });

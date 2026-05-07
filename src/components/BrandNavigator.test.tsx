@@ -219,6 +219,108 @@ describe('BrandNavigator', () => {
     expect(sectionsLayout.className).toContain('lg:grid-cols-2');
   });
 
+  it('renders inferred labels as Cultural Archaeologist-style chips in brand audience fields', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Patagonia',
+          highLevelSummary: 'Summary',
+          brandMission: 'Mission',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [
+            {
+              audience: 'Outdoor enthusiasts',
+              priority: '[INFERRED] Primary',
+              inferredRoleToConsumers: '[INFERRED] Trusted sustainability guide',
+              functionalBenefits: ['[INFERRED] Durable performance in varied weather'],
+              emotionalBenefits: ['[INFERRED] Alignment with environmental values'],
+            },
+          ],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Patagonia' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    expect(await screen.findByText('Trusted sustainability guide')).toBeInTheDocument();
+    expect(screen.queryByText(/\[INFERRED\]\s*Trusted sustainability guide/i)).not.toBeInTheDocument();
+
+    const inferredBadges = screen.getAllByText('inferred');
+    expect(inferredBadges.length).toBeGreaterThan(0);
+    expect(inferredBadges[0].className).toContain('bg-emerald-50');
+    expect(inferredBadges[0].className).toContain('text-emerald-700');
+    expect(inferredBadges[0].className).toContain('border-emerald-200');
+  });
+
+  it('converts inferred markers in summary and mission text into chips, including malformed bracket markers', async () => {
+    generateBrandResearchMatrix.mockResolvedValue({
+      analysisObjective: 'test objective',
+      ecosystemMethod: 'test method',
+      results: [
+        {
+          brandName: 'Emirates',
+          highLevelSummary:
+            'Emirates is a premium long-haul carrier. [INFERRED] In 2024-2026, the brand posture likely emphasizes premium demand capture.',
+          brandMission:
+            'To connect people globally through premium service. [INFERRED; the canonical statement could vary by source.]',
+          brandPositioning: {
+            taglines: [],
+            keyMessagesAndClaims: [],
+            valueProposition: 'Value',
+            voiceAndTone: 'Tone',
+          },
+          keyOfferingsProductsServices: [],
+          strategicMoatsStrengths: [],
+          potentialThreatsWeaknesses: [],
+          targetAudiences: [],
+          recentCampaigns: [],
+          keyMarketingChannels: [],
+          socialMediaChannels: [],
+          recentNews: [],
+          sources: [],
+        },
+      ],
+      sources: [],
+    });
+
+    render(<BrandNavigator />);
+    fireEvent.click(screen.getByRole('button', { name: /brand navigator/i }));
+
+    const brandsInput = await screen.findByTestId('brands-input');
+    fireEvent.change(brandsInput, { target: { value: 'Emirates' } });
+    fireEvent.keyDown(brandsInput, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
+
+    expect(await screen.findByText(/premium long-haul carrier/i)).toBeInTheDocument();
+    expect(screen.queryByText(/\[INFERRED\]/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\[INFERRED;/i)).not.toBeInTheDocument();
+
+    const inferredBadges = screen.getAllByText('inferred');
+    expect(inferredBadges.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',

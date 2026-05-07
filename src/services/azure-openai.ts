@@ -857,6 +857,22 @@ export function resolveBrandEvidenceMode(
   return hasEvidenceDigest || hasWebsiteGrounding ? 'strict' : 'inferred-fallback';
 }
 
+export function buildBrandEvidenceRulesBlock(
+  evidenceMode: 'strict' | 'inferred-fallback'
+): string {
+  return evidenceMode === 'strict'
+    ? `- CRITICAL EVIDENCE RULES:
+  - Prioritize the "Evidence digest" and "GROUNDING CONTEXT FROM OFFICIAL BRAND/CORPORATE WEBSITES".
+  - If a specific piece of information (like mission statement, recent campaigns, strategic moat) is NOT explicitly in those sections, you may infer cautiously using pre-trained knowledge, but MUST label it with [INFERRED].
+  - Do NOT fabricate precise metrics, direct quotes, or fake campaigns. If uncertain and no safe inference exists, return null or an empty array.`
+    : `- EVIDENCE BACKEND STATUS: Live evidence digest is unavailable right now.
+  - Use best-effort strategic analysis grounded in broadly known brand signals.
+  - Label uncertain points with [INFERRED] and avoid fabricated precision.
+  - Do not leave core sections empty just because the digest is unavailable.
+  - Prefer directional insights over "N/A" placeholders when a reasonable inference exists.
+  - Keep uncertainty explicit and conservative.`;
+}
+
 function filterAndWeightEvidence(items: z.infer<typeof EvidenceItemSchema>[]): string {
   const scored = items
     .map((item) => {
@@ -2610,30 +2626,9 @@ export async function generateBrandResearchMatrix(
     'brand'
   );
   const evidenceMode = resolveBrandEvidenceMode(evidenceDigest, websiteGroundingContext);
-  const evidenceRulesBlock =
-    evidenceMode === 'strict'
-      ? `- CRITICAL ANTI-HALLUCINATION RULES:
-  - You are an EXTRATOR, not a writer.
-  - DO NOT rely on your pre-trained knowledge.
-  - If a specific piece of information (like a mission statement, recent campaign, or strategic moat) is NOT explicitly mentioned in the "Evidence digest" or "First-Party Context", you MUST output null or an empty array.
-  - DO NOT guess, infer, or hallucinate metrics, taglines, or campaigns.`
-      : `- EVIDENCE BACKEND STATUS: Live evidence digest is unavailable right now.
-  - Use best-effort strategic analysis grounded in broadly known brand signals.
-  - Label uncertain points with [INFERRED] and avoid fabricated precision.
-  - Do not leave core sections empty just because the digest is unavailable.
-  - Prefer directional insights over "N/A" placeholders when a reasonable inference exists.
-  - Keep uncertainty explicit and conservative.`;
+  const evidenceRulesBlock = buildBrandEvidenceRulesBlock(evidenceMode);
   if (evidenceMode === 'inferred-fallback') {
     console.warn('[brand-research] Falling back to inferred mode because evidence digest and website grounding are unavailable.');
-  }
-
-  const urlsToScrape = brands.map((b) => b.website).filter(Boolean) as string[];
-  let firstPartyContext = '';
-
-  if (urlsToScrape.length > 0) {
-    console.log('[brand-research] Skipping precision index in browser runtime to avoid Node-only dependencies.', {
-      urlsToScrapeCount: urlsToScrape.length,
-    });
   }
 
   const prompt = `Generate a brand intelligence report for the following brands: ${brandContext}.${audienceStr}${topicStr}${generationStr}${filesStr}${sourcesTypeStr}
@@ -2677,8 +2672,6 @@ ${evidenceRulesBlock}
 
 Evidence digest (quality and date weighted):
 ${evidenceDigest}
-
-${firstPartyContext ? `\nFirst-party website excerpts:\n${firstPartyContext}` : ''}
 
 ${websiteGroundingContext ? `\n${websiteGroundingContext}` : ''}`;
 
