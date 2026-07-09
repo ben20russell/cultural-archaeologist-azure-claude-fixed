@@ -226,8 +226,14 @@ export interface DeepDiveReport {
   relevance: string;
   expandedContext: string;
   strategicImplications: string[];
-  realWorldExamples: string[];
+  realWorldExamples: Array<DeepDiveRealWorldExample | string>;
   sources: Source[];
+}
+
+export interface DeepDiveRealWorldExample {
+  text: string;
+  sourceTitle?: string | null;
+  sourceUrl?: string | null;
 }
 
 export interface BrandDeepDiveReport {
@@ -514,12 +520,18 @@ async function createChatCompletionWithFallback(
 }
 
 // Zod schemas for structured outputs
+const DeepDiveRealWorldExampleSchema = z.object({
+  text: z.string(),
+  sourceTitle: z.string().nullable(),
+  sourceUrl: z.string().nullable(),
+});
+
 const DeepDiveReportSchema = z.object({
   originationDate: z.string(),
   relevance: z.string(),
   expandedContext: z.string(),
   strategicImplications: z.array(z.string()),
-  realWorldExamples: z.array(z.string()),
+  realWorldExamples: z.array(DeepDiveRealWorldExampleSchema),
   sources: z.array(z.object({
     title: z.string(),
     url: z.string()
@@ -1591,12 +1603,47 @@ function sanitizeSourcesWithAllowlist(
   return sanitized.filter((source) => allowlist.has(source.url.toLowerCase()));
 }
 
+function sanitizeDeepDiveRealWorldExamples(
+  examples?: Array<DeepDiveRealWorldExample | string> | null
+): DeepDiveRealWorldExample[] {
+  const sanitizedExamples = (examples || [])
+    .map((example) => {
+      if (typeof example === 'string') {
+        const text = example.trim();
+        if (!text) return null;
+        const inlineSourceUrl = extractUrlsFromEvidenceDigest(text)[0] || null;
+        const sourceUrl = inlineSourceUrl ? normalizeExternalHttpUrl(inlineSourceUrl) : null;
+        return {
+          text,
+          sourceTitle: sourceUrl ? deriveHeadlineFromUrl(sourceUrl) : null,
+          sourceUrl: sourceUrl || null,
+        };
+      }
+
+      const text = (example?.text || '').trim();
+      if (!text) return null;
+      const sourceUrl = normalizeExternalHttpUrl(example?.sourceUrl || undefined) || null;
+      const sourceTitle = sourceUrl
+        ? ((example?.sourceTitle || '').trim() || deriveHeadlineFromUrl(sourceUrl))
+        : null;
+
+      return {
+        text,
+        sourceTitle,
+        sourceUrl,
+      };
+    })
+    .filter(Boolean);
+
+  return sanitizedExamples as DeepDiveRealWorldExample[];
+}
+
 function sanitizeDeepDiveReport(report: DeepDiveReport): DeepDiveReport {
   return {
     ...report,
     sources: sanitizeSources(report.sources),
     strategicImplications: (report.strategicImplications || []).map((item) => item.trim()).filter(Boolean),
-    realWorldExamples: (report.realWorldExamples || []).map((item) => item.trim()).filter(Boolean),
+    realWorldExamples: sanitizeDeepDiveRealWorldExamples(report.realWorldExamples),
   };
 }
 
@@ -2543,10 +2590,18 @@ Execution requirements:
 - Keep each report balanced: breaking + structural perspective.
 - If a lane is weak for a specific insight, explicitly note the limitation rather than inventing detail.`;
 
+const DEEP_DIVE_REAL_WORLD_EXAMPLE_CITATION_PROTOCOL = `Real World Examples citation protocol (must follow):
+- For EACH realWorldExamples item, provide a text field plus sourceTitle and sourceUrl fields.
+- The sourceUrl must directly support that specific bullet and must come from the Evidence Digest.
+- Do not assign a source to a bullet unless the source clearly substantiates that exact claim.
+- If a bullet cannot be supported by a specific source URL, revise or remove the bullet instead of guessing.`;
+
 export function buildInsightDeepDivePrompt(params: InsightDeepDivePromptParams & { deepDiveFocus: string }): string {
   return `${buildInsightDeepDiveContextHeader(params)}
 
 ${DUAL_LANE_MACRO_SINGLE_BLOCK}
+
+${DEEP_DIVE_REAL_WORLD_EXAMPLE_CITATION_PROTOCOL}
 
 ${RESEARCH_ACCURACY_PROTOCOL}`;
 }
@@ -2564,6 +2619,8 @@ Insights:
 ${params.insights.map((insight, index) => `${index + 1}. "${insight}"`).join('\n')}
 
 ${DUAL_LANE_MACRO_BATCH_BLOCK}
+
+${DEEP_DIVE_REAL_WORLD_EXAMPLE_CITATION_PROTOCOL}
 
 ${RESEARCH_ACCURACY_PROTOCOL}`;
 }

@@ -662,7 +662,13 @@ const renderCulturalMatrixItems = (items: MatrixItem[], keyPrefix: string) => {
                   {(item.deepDive?.realWorldExamples || []).length > 0 && (
                     <div className="mt-2">
                       <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Real World Examples</p>
-                      <div className="mt-1">{renderSimpleList(item.deepDive?.realWorldExamples || [], 'No examples listed.', `${keyPrefix}-deep-examples-${index}`)}</div>
+                      <div className="mt-1">
+                        {renderSimpleList(
+                          (item.deepDive?.realWorldExamples || []).map((example) => (typeof example === 'string' ? example : example.text)),
+                          'No examples listed.',
+                          `${keyPrefix}-deep-examples-${index}`
+                        )}
+                      </div>
                     </div>
                   )}
 

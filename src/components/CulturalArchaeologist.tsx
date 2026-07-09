@@ -482,32 +482,12 @@ type RealWorldExampleSourceLink = {
   url: string;
 };
 
-const REAL_WORLD_EXAMPLE_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi;
-const LINK_MATCH_STOPWORDS = new Set([
-  'a',
-  'an',
-  'and',
-  'are',
-  'as',
-  'at',
-  'be',
-  'by',
-  'for',
-  'from',
-  'in',
-  'into',
-  'is',
-  'it',
-  'of',
-  'on',
-  'or',
-  'that',
-  'the',
-  'their',
-  'this',
-  'to',
-  'with',
-]);
+type NormalizedRealWorldExampleEntry = {
+  text: string;
+  sourceLink: RealWorldExampleSourceLink | null;
+};
+
+const REAL_WORLD_EXAMPLE_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
 
 const deriveSourceTitleFromUrl = (url: string): string => {
   try {
@@ -518,134 +498,41 @@ const deriveSourceTitleFromUrl = (url: string): string => {
   }
 };
 
-const normalizeTextForLinkMatching = (value: string): string => {
-  return value
-    .toLowerCase()
-    .replace(/https?:\/\//g, ' ')
-    .replace(/www\./g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+const extractInlineSourceLinkFromText = (value: string): RealWorldExampleSourceLink | null => {
+  const inlineMatch = value.match(REAL_WORLD_EXAMPLE_URL_PATTERN);
+  if (!inlineMatch?.[1]) return null;
+  const normalizedUrl = normalizeExternalHttpUrl(inlineMatch[1]);
+  if (!normalizedUrl) return null;
+  return {
+    title: deriveSourceTitleFromUrl(normalizedUrl),
+    url: normalizedUrl,
+  };
 };
 
-const tokenizeForLinkMatching = (value: string): string[] => {
-  return normalizeTextForLinkMatching(value)
-    .split(' ')
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 3 && !LINK_MATCH_STOPWORDS.has(token));
-};
-
-const extractDomainKeywordFromUrl = (url: string): string => {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
-    const [domainKeyword] = hostname.split('.');
-    return domainKeyword || '';
-  } catch {
-    return '';
-  }
-};
-
-const buildSourceKeywords = (source: RealWorldExampleSourceLink): string[] => {
-  const domainKeyword = extractDomainKeywordFromUrl(source.url);
-  return Array.from(
-    new Set([
-      ...tokenizeForLinkMatching(source.title),
-      ...tokenizeForLinkMatching(source.url),
-      ...(domainKeyword ? [domainKeyword] : []),
-    ])
-  );
-};
-
-type RealWorldSourceMatchScore = {
-  source: RealWorldExampleSourceLink;
-  score: number;
-};
-
-const scoreRealWorldSourceMatch = (exampleText: string, source: RealWorldExampleSourceLink): number => {
-  const exampleKeywords = new Set(tokenizeForLinkMatching(exampleText));
-  const sourceKeywords = buildSourceKeywords(source);
-  const overlapCount = sourceKeywords.reduce((count, keyword) => count + (exampleKeywords.has(keyword) ? 1 : 0), 0);
-
-  const normalizedExample = normalizeTextForLinkMatching(exampleText);
-  const normalizedSourceTitle = normalizeTextForLinkMatching(source.title);
-  const sourceTitlePhraseMatch = normalizedSourceTitle.length > 0 && normalizedExample.includes(normalizedSourceTitle);
-  const domainKeyword = extractDomainKeywordFromUrl(source.url);
-  const domainKeywordMatch = domainKeyword.length > 0 && normalizedExample.includes(domainKeyword);
-
-  return overlapCount + (sourceTitlePhraseMatch ? 3 : 0) + (domainKeywordMatch ? 2 : 0);
-};
-
-const resolveRealWorldExampleSourceLink = (
-  exampleText: string,
-  exampleIndex: number,
-  sources: DeepDiveReport['sources'] | undefined
-): RealWorldExampleSourceLink | null => {
-  const normalizedSources = (sources || [])
-    .map((source) => {
-      const normalizedUrl = normalizeExternalHttpUrl(source?.url || undefined);
-      if (!normalizedUrl) return null;
-      return {
-        title: (source?.title || '').trim() || deriveSourceTitleFromUrl(normalizedUrl),
-        url: normalizedUrl,
-      };
-    })
-    .filter((source): source is RealWorldExampleSourceLink => Boolean(source));
-
-  const sourcesByUrl = new Map(
-    normalizedSources.map((source) => [source.url.toLowerCase(), source] as const)
-  );
-
-  const inlineUrlMatches = exampleText.match(REAL_WORLD_EXAMPLE_URL_PATTERN) || [];
-  for (const inlineUrl of inlineUrlMatches) {
-    const normalizedInlineUrl = normalizeExternalHttpUrl(inlineUrl);
-    if (!normalizedInlineUrl) continue;
-
-    const matchedSource = sourcesByUrl.get(normalizedInlineUrl.toLowerCase());
-    if (matchedSource) {
-      return matchedSource;
-    }
-
-    console.log('[CulturalArchaeologist] Skipping inline example link because it is not present in deep-dive sources.', {
-      exampleIndex,
-      normalizedInlineUrl,
-      sourceCount: normalizedSources.length,
-    });
+const normalizeRealWorldExampleEntry = (
+  example: DeepDiveReport['realWorldExamples'][number]
+): NormalizedRealWorldExampleEntry => {
+  if (typeof example === 'string') {
+    const text = example.trim();
+    return {
+      text,
+      sourceLink: extractInlineSourceLinkFromText(text),
+    };
   }
 
-  if (!normalizedSources.length) {
-    return null;
-  }
+  const text = (example?.text || '').trim();
+  const sourceUrl = normalizeExternalHttpUrl(example?.sourceUrl || undefined);
+  const sourceTitle = (example?.sourceTitle || '').trim();
 
-  if (normalizedSources.length === 1) {
-    return normalizedSources[0];
-  }
-
-  const scoredMatches: RealWorldSourceMatchScore[] = normalizedSources
-    .map((source) => ({
-      source,
-      score: scoreRealWorldSourceMatch(exampleText, source),
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  const bestMatch = scoredMatches[0];
-  const secondBestMatch = scoredMatches[1];
-  const hasStrongBestMatch = Boolean(bestMatch && bestMatch.score >= 2);
-  const isUniquelyBestMatch = Boolean(
-    bestMatch && (!secondBestMatch || bestMatch.score > secondBestMatch.score)
-  );
-
-  if (!bestMatch || !hasStrongBestMatch || !isUniquelyBestMatch) {
-    console.log('[CulturalArchaeologist] Skipping real-world example source link after double-check mismatch.', {
-      exampleIndex,
-      bestScore: bestMatch?.score ?? null,
-      secondBestScore: secondBestMatch?.score ?? null,
-      sourceCount: normalizedSources.length,
-      examplePreview: exampleText.slice(0, 140),
-    });
-    return null;
-  }
-
-  return bestMatch.source;
+  return {
+    text,
+    sourceLink: sourceUrl
+      ? {
+          title: sourceTitle || deriveSourceTitleFromUrl(sourceUrl),
+          url: sourceUrl,
+        }
+      : null,
+  };
 };
 
 type AskAnswerSection = {
@@ -3876,13 +3763,15 @@ export default function CulturalArchaeologist() {
           ddSlide.addText("Real World Examples", { x: 0.5, y: currentY, w: 9, h: 0.3, fontSize: 12, color: "52525B", bold: true });
           currentY += 0.3;
           const examplesText = d.deepDive.realWorldExamples
-            .map((example, exampleIndex) => {
-              const sourceLink = resolveRealWorldExampleSourceLink(example, exampleIndex, d.deepDive?.sources);
-              if (!sourceLink) {
-                return `• ${example}`;
+            .map((example) => {
+              const normalizedExample = normalizeRealWorldExampleEntry(example);
+              if (!normalizedExample.text) return '';
+              if (!normalizedExample.sourceLink) {
+                return `• ${normalizedExample.text}`;
               }
-              return `• ${example}\n  Source: ${sourceLink.title} - ${sourceLink.url}`;
+              return `• ${normalizedExample.text}\n  Source: ${normalizedExample.sourceLink.title} - ${normalizedExample.sourceLink.url}`;
             })
+            .filter(Boolean)
             .join('\n');
           ddSlide.addText(examplesText, { x: 0.5, y: currentY, w: 9, h: 0.6, fontSize: 11, color: "3F3F46" });
         }
@@ -3952,11 +3841,12 @@ export default function CulturalArchaeologist() {
             `Strategic Implication ${implicationIndex + 1}: ${implication}`
           ),
           ...(deepDive.realWorldExamples || []).map((example, exampleIndex) => {
-            const sourceLink = resolveRealWorldExampleSourceLink(example, exampleIndex, deepDive.sources);
-            if (!sourceLink) {
-              return `Real-World Example ${exampleIndex + 1}: ${example}`;
+            const normalizedExample = normalizeRealWorldExampleEntry(example);
+            if (!normalizedExample.text) return '';
+            if (!normalizedExample.sourceLink) {
+              return `Real-World Example ${exampleIndex + 1}: ${normalizedExample.text}`;
             }
-            return `Real-World Example ${exampleIndex + 1}: ${example} | Source: ${sourceLink.title} - ${sourceLink.url}`;
+            return `Real-World Example ${exampleIndex + 1}: ${normalizedExample.text} | Source: ${normalizedExample.sourceLink.title} - ${normalizedExample.sourceLink.url}`;
           }),
         ].filter(Boolean);
 
@@ -4754,8 +4644,9 @@ export default function CulturalArchaeologist() {
                             content: (
                               <ul className="space-y-3">
                                 {deepDiveResult.realWorldExamples.map((ex, i) => {
-                                  const parsedExample = extractEvidenceTags(ex);
-                                  const exampleSourceLink = resolveRealWorldExampleSourceLink(parsedExample.cleanText, i, deepDiveResult.sources);
+                                  const normalizedExample = normalizeRealWorldExampleEntry(ex);
+                                  const parsedExample = extractEvidenceTags(normalizedExample.text);
+                                  const exampleSourceLink = normalizedExample.sourceLink;
                                   return (
                                   <li key={i} className="text-zinc-700 text-sm">
                                     <div className="flex flex-col gap-2">
@@ -4869,8 +4760,9 @@ export default function CulturalArchaeologist() {
                         </h4>
                         <ul className="space-y-3">
                           {deepDiveResult.realWorldExamples.map((ex, i) => {
-                            const parsedExample = extractEvidenceTags(ex);
-                            const exampleSourceLink = resolveRealWorldExampleSourceLink(parsedExample.cleanText, i, deepDiveResult.sources);
+                            const normalizedExample = normalizeRealWorldExampleEntry(ex);
+                            const parsedExample = extractEvidenceTags(normalizedExample.text);
+                            const exampleSourceLink = normalizedExample.sourceLink;
                             return (
                               <li key={i} className="text-zinc-700 text-sm">
                                 <div className="flex flex-col gap-2">

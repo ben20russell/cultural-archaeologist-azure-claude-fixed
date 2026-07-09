@@ -1074,7 +1074,13 @@ describe('CulturalArchaeologist', () => {
         relevance: 'High relevance for purchase intent framing.',
         expandedContext: 'Deep dive context from batch generation.',
         strategicImplications: ['Prioritize confidence-building social proof at launch.'],
-        realWorldExamples: ['Competing title bundles creator clips with demo missions.'],
+        realWorldExamples: [
+          {
+            text: 'Competing title bundles creator clips with demo missions.',
+            sourceTitle: 'Example Source',
+            sourceUrl: 'https://example.com',
+          },
+        ],
         sources: [{ title: 'Example Source', url: 'https://example.com' }],
       },
     ]);
@@ -1866,8 +1872,16 @@ describe('CulturalArchaeologist', () => {
       expandedContext: '[KNOWN] Expanded context detail',
       strategicImplications: ['[KNOWN] Strategic implication detail'],
       realWorldExamples: [
-        '[KNOWN] Reuters Example One creator co-sign drove launch-day sell-through.',
-        '[INFERRED] Reuters Example Two challenge format lifted conversion for this drop.',
+        {
+          text: '[KNOWN] Reuters Example One creator co-sign drove launch-day sell-through.',
+          sourceTitle: 'Reuters Example One',
+          sourceUrl: 'https://www.reuters.com/example-one',
+        },
+        {
+          text: '[INFERRED] Reuters Example Two challenge format lifted conversion for this drop.',
+          sourceTitle: 'Reuters Example Two',
+          sourceUrl: 'https://www.reuters.com/example-two',
+        },
       ],
       sources: [
         { title: 'Reuters Example One', url: 'https://www.reuters.com/example-one' },
@@ -1918,6 +1932,49 @@ describe('CulturalArchaeologist', () => {
       sources: [
         { title: 'Reuters Example One', url: 'https://www.reuters.com/example-one' },
         { title: 'Reuters Example Two', url: 'https://www.reuters.com/example-two' },
+        { title: 'Reuters Example Three', url: 'https://www.reuters.com/example-three' },
+      ],
+    });
+
+    render(<CulturalArchaeologist />);
+
+    const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
+    fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
+
+    const deepDiveButton = await screen.findByTitle('Generate Deep Dive');
+    fireEvent.click(deepDiveButton);
+
+    await screen.findByText('Real World Examples');
+    expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-0')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-1')).not.toBeInTheDocument();
+  });
+
+  it('does not index-pair TikTok-style bullets to unrelated Starbucks newsroom links', async () => {
+    generateCulturalMatrix.mockResolvedValueOnce({
+      ...mockMatrix,
+      moments: [
+        {
+          text: 'First signal',
+          isHighlyUnique: false,
+          sourceType: 'Mainstream',
+          confidenceLevel: 'high' as const,
+          trendLifecycle: 'peaking' as const,
+        },
+      ],
+    });
+    generateDeepDive.mockResolvedValueOnce({
+      originationDate: '2026-05-11',
+      relevance: 'High relevance to current market shifts.',
+      expandedContext: '[KNOWN] Expanded context detail',
+      strategicImplications: ['[KNOWN] Strategic implication detail'],
+      realWorldExamples: [
+        "TikTok/Instagram-style 'how to order this' posts that show a full Starbucks drink build in screenshot form.",
+        "Iced espresso customization posts that add cold foam, alt milk, or syrup changes.",
+      ],
+      sources: [
+        { title: 'Starbucks Newsroom', url: 'https://stories.starbucks.com/' },
+        { title: 'Starbucks Investor Relations', url: 'https://investor.starbucks.com/' },
       ],
     });
 
