@@ -488,6 +488,30 @@ type NormalizedRealWorldExampleEntry = {
 };
 
 const REAL_WORLD_EXAMPLE_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/i;
+const REAL_WORLD_EXAMPLE_PLACEHOLDER_SOURCE_PATTERN = /\b(provided[-\s]+evidence[-\s]+digest|evidence[-\s]+digest|source[-\s]+digest|provided\s+context)\b/i;
+
+const isPlaceholderRealWorldExampleSourceValue = (value?: string | null): boolean => {
+  const normalized = (value || '').trim();
+  if (!normalized) return false;
+  return REAL_WORLD_EXAMPLE_PLACEHOLDER_SOURCE_PATTERN.test(normalized);
+};
+
+const normalizeRealWorldExampleSourceUrl = (rawUrl?: string | null): string | null => {
+  if (!rawUrl || isPlaceholderRealWorldExampleSourceValue(rawUrl)) return null;
+  const normalized = normalizeExternalHttpUrl(rawUrl);
+  if (!normalized) return null;
+
+  try {
+    const hostname = new URL(normalized).hostname.toLowerCase();
+    if (!hostname || !hostname.includes('.')) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return normalized;
+};
 
 const deriveSourceTitleFromUrl = (url: string): string => {
   try {
@@ -501,7 +525,7 @@ const deriveSourceTitleFromUrl = (url: string): string => {
 const extractInlineSourceLinkFromText = (value: string): RealWorldExampleSourceLink | null => {
   const inlineMatch = value.match(REAL_WORLD_EXAMPLE_URL_PATTERN);
   if (!inlineMatch?.[1]) return null;
-  const normalizedUrl = normalizeExternalHttpUrl(inlineMatch[1]);
+  const normalizedUrl = normalizeRealWorldExampleSourceUrl(inlineMatch[1]);
   if (!normalizedUrl) return null;
   return {
     title: deriveSourceTitleFromUrl(normalizedUrl),
@@ -521,8 +545,10 @@ const normalizeRealWorldExampleEntry = (
   }
 
   const text = (example?.text || '').trim();
-  const sourceUrl = normalizeExternalHttpUrl(example?.sourceUrl || undefined);
-  const sourceTitle = (example?.sourceTitle || '').trim();
+  const sourceUrl = normalizeRealWorldExampleSourceUrl(example?.sourceUrl || undefined);
+  const sourceTitle = isPlaceholderRealWorldExampleSourceValue(example?.sourceTitle || '')
+    ? ''
+    : (example?.sourceTitle || '').trim();
 
   return {
     text,
@@ -533,6 +559,25 @@ const normalizeRealWorldExampleEntry = (
         }
       : null,
   };
+};
+
+const normalizeDeepDiveSourceLinks = (
+  sources?: DeepDiveReport['sources']
+): RealWorldExampleSourceLink[] => {
+  return (sources || [])
+    .map((source) => {
+      const sourceUrl = normalizeRealWorldExampleSourceUrl(source?.url || undefined);
+      if (!sourceUrl) return null;
+      const sourceTitle = isPlaceholderRealWorldExampleSourceValue(source?.title || '')
+        ? ''
+        : (source?.title || '').trim();
+
+      return {
+        title: sourceTitle || deriveSourceTitleFromUrl(sourceUrl),
+        url: sourceUrl,
+      };
+    })
+    .filter((source): source is RealWorldExampleSourceLink => Boolean(source));
 };
 
 type AskAnswerSection = {
@@ -4709,14 +4754,14 @@ export default function CulturalArchaeologist() {
                               </ul>
                             ),
                           },
-                          ...(deepDiveResult.sources && deepDiveResult.sources.length > 0
+                          ...(normalizeDeepDiveSourceLinks(deepDiveResult.sources).length > 0
                             ? [
                                 {
                                   id: 'deep-dive-sources',
                                   title: 'Sources',
                                   content: (
                                     <div className="flex flex-wrap gap-2">
-                                      {deepDiveResult.sources.map((source, i) => (
+                                      {normalizeDeepDiveSourceLinks(deepDiveResult.sources).map((source, i) => (
                                         <a
                                           key={i}
                                           href={toSafeExternalHref(source.url)}
@@ -4823,11 +4868,11 @@ export default function CulturalArchaeologist() {
                         </section>
                       </div>
 
-                      {deepDiveResult.sources && deepDiveResult.sources.length > 0 && (
+                      {normalizeDeepDiveSourceLinks(deepDiveResult.sources).length > 0 && (
                         <section className="pt-6 border-t border-zinc-100">
                           <h4 className="text-sm font-bold text-zinc-900 mb-3">Sources</h4>
                           <div className="flex flex-wrap gap-2">
-                            {deepDiveResult.sources.map((source, i) => (
+                            {normalizeDeepDiveSourceLinks(deepDiveResult.sources).map((source, i) => (
                               <a
                                 key={i}
                                 href={toSafeExternalHref(source.url)}

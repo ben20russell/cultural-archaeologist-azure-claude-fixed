@@ -1603,16 +1603,57 @@ function sanitizeSourcesWithAllowlist(
   return sanitized.filter((source) => allowlist.has(source.url.toLowerCase()));
 }
 
+const DEEP_DIVE_PLACEHOLDER_SOURCE_PATTERN = /\b(provided[-\s]+evidence[-\s]+digest|evidence[-\s]+digest|source[-\s]+digest|provided\s+context)\b/i;
+
+function isDeepDivePlaceholderSourceValue(value?: string | null): boolean {
+  const normalized = (value || '').trim();
+  if (!normalized) return false;
+  return DEEP_DIVE_PLACEHOLDER_SOURCE_PATTERN.test(normalized);
+}
+
+function buildDeepDiveEvidenceAllowlist(allowedEvidenceUrls: string[] = []): Set<string> {
+  const allowlist = new Set<string>();
+  for (const candidate of allowedEvidenceUrls) {
+    const normalized = normalizeHttpsUrl(candidate);
+    if (normalized) {
+      allowlist.add(normalized.toLowerCase());
+    }
+  }
+  return allowlist;
+}
+
+function normalizeDeepDiveCitationUrl(
+  rawUrl?: string | null,
+  allowlist?: Set<string>
+): string | null {
+  if (!rawUrl || isDeepDivePlaceholderSourceValue(rawUrl)) return null;
+  const normalized = normalizeHttpsUrl(rawUrl);
+  if (!normalized) return null;
+
+  if (allowlist && allowlist.size > 0 && !allowlist.has(normalized.toLowerCase())) {
+    console.log('[deep-dive] Dropping citation URL not present in evidence allowlist.', {
+      rawUrl,
+      normalized,
+      allowlistCount: allowlist.size,
+    });
+    return null;
+  }
+
+  return normalized;
+}
+
 function sanitizeDeepDiveRealWorldExamples(
-  examples?: Array<DeepDiveRealWorldExample | string> | null
+  examples?: Array<DeepDiveRealWorldExample | string> | null,
+  allowedEvidenceUrls: string[] = []
 ): DeepDiveRealWorldExample[] {
+  const evidenceAllowlist = buildDeepDiveEvidenceAllowlist(allowedEvidenceUrls);
   const sanitizedExamples = (examples || [])
     .map((example) => {
       if (typeof example === 'string') {
         const text = example.trim();
         if (!text) return null;
         const inlineSourceUrl = extractUrlsFromEvidenceDigest(text)[0] || null;
-        const sourceUrl = inlineSourceUrl ? normalizeExternalHttpUrl(inlineSourceUrl) : null;
+        const sourceUrl = normalizeDeepDiveCitationUrl(inlineSourceUrl, evidenceAllowlist);
         return {
           text,
           sourceTitle: sourceUrl ? deriveHeadlineFromUrl(sourceUrl) : null,
@@ -1622,9 +1663,12 @@ function sanitizeDeepDiveRealWorldExamples(
 
       const text = (example?.text || '').trim();
       if (!text) return null;
-      const sourceUrl = normalizeExternalHttpUrl(example?.sourceUrl || undefined) || null;
+      const sourceUrl = normalizeDeepDiveCitationUrl(example?.sourceUrl || undefined, evidenceAllowlist);
+      const cleanedSourceTitle = isDeepDivePlaceholderSourceValue(example?.sourceTitle || '')
+        ? ''
+        : (example?.sourceTitle || '').trim();
       const sourceTitle = sourceUrl
-        ? ((example?.sourceTitle || '').trim() || deriveHeadlineFromUrl(sourceUrl))
+        ? (cleanedSourceTitle || deriveHeadlineFromUrl(sourceUrl))
         : null;
 
       return {
@@ -1638,12 +1682,19 @@ function sanitizeDeepDiveRealWorldExamples(
   return sanitizedExamples as DeepDiveRealWorldExample[];
 }
 
-function sanitizeDeepDiveReport(report: DeepDiveReport): DeepDiveReport {
+function sanitizeDeepDiveReport(
+  report: DeepDiveReport,
+  allowedEvidenceUrls: string[] = []
+): DeepDiveReport {
+  const sanitizedSources = allowedEvidenceUrls.length > 0
+    ? sanitizeSourcesWithAllowlist(report.sources, allowedEvidenceUrls)
+    : sanitizeSources(report.sources);
+
   return {
     ...report,
-    sources: sanitizeSources(report.sources),
+    sources: sanitizedSources,
     strategicImplications: (report.strategicImplications || []).map((item) => item.trim()).filter(Boolean),
-    realWorldExamples: sanitizeDeepDiveRealWorldExamples(report.realWorldExamples),
+    realWorldExamples: sanitizeDeepDiveRealWorldExamples(report.realWorldExamples, allowedEvidenceUrls),
   };
 }
 
@@ -2630,6 +2681,7 @@ export async function generateDeepDive(
   context: { audience: string; brand: string; generations: string[]; topicFocus?: string }
 ): Promise<DeepDiveReport> {
   const evidenceDigest = await gatherEvidenceForTopic(`Deep dive on insight: ${insight.text}`, 'cultural');
+  const allowedEvidenceUrls = extractUrlsFromEvidenceDigest(evidenceDigest);
 
   const prompt = buildInsightDeepDivePrompt({
     audience: context.audience,
@@ -2657,7 +2709,7 @@ export async function generateDeepDive(
   });
 
   const devil = await runDevilsAdvocatePass(`Deep dive: ${insight.text}`, parsed, 'cultural');
-  const sanitized = sanitizeDeepDiveReport(parsed);
+  const sanitized = sanitizeDeepDiveReport(parsed, allowedEvidenceUrls);
   const summarizedDevilsAdvocate = buildDeepDiveDevilsAdvocateImplications(devil);
   console.log('[deep-dive] Added summarized devil\'s advocate implications.', {
     insight: insight.text,
@@ -2680,6 +2732,7 @@ export async function generateDeepDivesBatch(
     `Deep dive batch on insights: ${insights.map((item) => item.text).join(' | ')}`,
     'cultural'
   );
+  const allowedEvidenceUrls = extractUrlsFromEvidenceDigest(evidenceDigest);
   const prompt = buildInsightDeepDiveBatchPrompt({
     audience: context.audience,
     insights: insights.map((item) => item.text),
@@ -2704,7 +2757,7 @@ export async function generateDeepDivesBatch(
     qualityGate: (result) => Array.isArray(result.reports) && result.reports.length >= Math.max(1, Math.floor(insights.length * 0.6)),
   });
 
-  const reports = (parsed.reports || []).map((report: DeepDiveReport) => sanitizeDeepDiveReport(report));
+  const reports = (parsed.reports || []).map((report: DeepDiveReport) => sanitizeDeepDiveReport(report, allowedEvidenceUrls));
   updateSessionBrief('cultural', { reports });
   return reports;
 }

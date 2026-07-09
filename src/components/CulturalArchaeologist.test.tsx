@@ -1992,6 +1992,50 @@ describe('CulturalArchaeologist', () => {
     expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-1')).not.toBeInTheDocument();
   });
 
+  it('does not render placeholder "Provided Evidence Digest" pseudo-links for real-world examples', async () => {
+    generateCulturalMatrix.mockResolvedValueOnce({
+      ...mockMatrix,
+      moments: [
+        {
+          text: 'First signal',
+          isHighlyUnique: false,
+          sourceType: 'Mainstream',
+          confidenceLevel: 'high' as const,
+          trendLifecycle: 'peaking' as const,
+        },
+      ],
+    });
+    generateDeepDive.mockResolvedValueOnce({
+      originationDate: '2026-05-11',
+      relevance: 'High relevance to current market shifts.',
+      expandedContext: '[KNOWN] Expanded context detail',
+      strategicImplications: ['[KNOWN] Strategic implication detail'],
+      realWorldExamples: [
+        {
+          text: '[KNOWN] Starbucks-related recipe content remains easy to replicate on TikTok/Instagram Reels.',
+          sourceTitle: 'Provided Evidence Digest',
+          sourceUrl: 'provided-evidence-digest',
+        },
+      ],
+      sources: [
+        { title: 'Provided Evidence Digest', url: 'provided-evidence-digest' },
+      ],
+    });
+
+    render(<CulturalArchaeologist />);
+
+    const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
+    fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
+
+    const deepDiveButton = await screen.findByTitle('Generate Deep Dive');
+    fireEvent.click(deepDiveButton);
+
+    await screen.findByText('Real World Examples');
+    expect(screen.queryByText('Provided Evidence Digest')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-0')).not.toBeInTheDocument();
+  });
+
   it('attaches ask-answer evidence chips to the specific sentence they belong to', async () => {
     askMatrixQuestion.mockResolvedValueOnce({
       answer: '[KNOWN] Gen Z is using AI pragmatically in school and work contexts. [INFERRED] Direct cross-generation preference claims are not supported by this data.',
