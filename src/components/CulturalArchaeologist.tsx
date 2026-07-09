@@ -483,6 +483,31 @@ type RealWorldExampleSourceLink = {
 };
 
 const REAL_WORLD_EXAMPLE_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi;
+const LINK_MATCH_STOPWORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'be',
+  'by',
+  'for',
+  'from',
+  'in',
+  'into',
+  'is',
+  'it',
+  'of',
+  'on',
+  'or',
+  'that',
+  'the',
+  'their',
+  'this',
+  'to',
+  'with',
+]);
 
 const deriveSourceTitleFromUrl = (url: string): string => {
   try {
@@ -491,6 +516,63 @@ const deriveSourceTitleFromUrl = (url: string): string => {
   } catch {
     return 'Source link';
   }
+};
+
+const normalizeTextForLinkMatching = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/https?:\/\//g, ' ')
+    .replace(/www\./g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+};
+
+const tokenizeForLinkMatching = (value: string): string[] => {
+  return normalizeTextForLinkMatching(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !LINK_MATCH_STOPWORDS.has(token));
+};
+
+const extractDomainKeywordFromUrl = (url: string): string => {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+    const [domainKeyword] = hostname.split('.');
+    return domainKeyword || '';
+  } catch {
+    return '';
+  }
+};
+
+const buildSourceKeywords = (source: RealWorldExampleSourceLink): string[] => {
+  const domainKeyword = extractDomainKeywordFromUrl(source.url);
+  return Array.from(
+    new Set([
+      ...tokenizeForLinkMatching(source.title),
+      ...tokenizeForLinkMatching(source.url),
+      ...(domainKeyword ? [domainKeyword] : []),
+    ])
+  );
+};
+
+type RealWorldSourceMatchScore = {
+  source: RealWorldExampleSourceLink;
+  score: number;
+};
+
+const scoreRealWorldSourceMatch = (exampleText: string, source: RealWorldExampleSourceLink): number => {
+  const exampleKeywords = new Set(tokenizeForLinkMatching(exampleText));
+  const sourceKeywords = buildSourceKeywords(source);
+  const overlapCount = sourceKeywords.reduce((count, keyword) => count + (exampleKeywords.has(keyword) ? 1 : 0), 0);
+
+  const normalizedExample = normalizeTextForLinkMatching(exampleText);
+  const normalizedSourceTitle = normalizeTextForLinkMatching(source.title);
+  const sourceTitlePhraseMatch = normalizedSourceTitle.length > 0 && normalizedExample.includes(normalizedSourceTitle);
+  const domainKeyword = extractDomainKeywordFromUrl(source.url);
+  const domainKeywordMatch = domainKeyword.length > 0 && normalizedExample.includes(domainKeyword);
+
+  return overlapCount + (sourceTitlePhraseMatch ? 3 : 0) + (domainKeywordMatch ? 2 : 0);
 };
 
 const resolveRealWorldExampleSourceLink = (
@@ -523,17 +605,47 @@ const resolveRealWorldExampleSourceLink = (
       return matchedSource;
     }
 
-    return {
-      title: deriveSourceTitleFromUrl(normalizedInlineUrl),
-      url: normalizedInlineUrl,
-    };
+    console.log('[CulturalArchaeologist] Skipping inline example link because it is not present in deep-dive sources.', {
+      exampleIndex,
+      normalizedInlineUrl,
+      sourceCount: normalizedSources.length,
+    });
   }
 
   if (!normalizedSources.length) {
     return null;
   }
 
-  return normalizedSources[exampleIndex % normalizedSources.length];
+  if (normalizedSources.length === 1) {
+    return normalizedSources[0];
+  }
+
+  const scoredMatches: RealWorldSourceMatchScore[] = normalizedSources
+    .map((source) => ({
+      source,
+      score: scoreRealWorldSourceMatch(exampleText, source),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const bestMatch = scoredMatches[0];
+  const secondBestMatch = scoredMatches[1];
+  const hasStrongBestMatch = Boolean(bestMatch && bestMatch.score >= 2);
+  const isUniquelyBestMatch = Boolean(
+    bestMatch && (!secondBestMatch || bestMatch.score > secondBestMatch.score)
+  );
+
+  if (!bestMatch || !hasStrongBestMatch || !isUniquelyBestMatch) {
+    console.log('[CulturalArchaeologist] Skipping real-world example source link after double-check mismatch.', {
+      exampleIndex,
+      bestScore: bestMatch?.score ?? null,
+      secondBestScore: secondBestMatch?.score ?? null,
+      sourceCount: normalizedSources.length,
+      examplePreview: exampleText.slice(0, 140),
+    });
+    return null;
+  }
+
+  return bestMatch.source;
 };
 
 type AskAnswerSection = {

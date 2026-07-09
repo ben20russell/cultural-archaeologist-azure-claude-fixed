@@ -1866,8 +1866,8 @@ describe('CulturalArchaeologist', () => {
       expandedContext: '[KNOWN] Expanded context detail',
       strategicImplications: ['[KNOWN] Strategic implication detail'],
       realWorldExamples: [
-        '[KNOWN] Example detail one',
-        '[INFERRED] Example detail two',
+        '[KNOWN] Reuters Example One creator co-sign drove launch-day sell-through.',
+        '[INFERRED] Reuters Example Two challenge format lifted conversion for this drop.',
       ],
       sources: [
         { title: 'Reuters Example One', url: 'https://www.reuters.com/example-one' },
@@ -1891,6 +1891,48 @@ describe('CulturalArchaeologist', () => {
     expect(exampleTwoSourceLink).toHaveAttribute('href', expect.stringContaining('https://www.reuters.com/example-two'));
     expect(exampleOneSourceLink).toHaveTextContent('Reuters Example One');
     expect(exampleTwoSourceLink).toHaveTextContent('Reuters Example Two');
+  });
+
+  it('does not attach a real-world example link when source matching is ambiguous', async () => {
+    generateCulturalMatrix.mockResolvedValueOnce({
+      ...mockMatrix,
+      moments: [
+        {
+          text: 'First signal',
+          isHighlyUnique: false,
+          sourceType: 'Mainstream',
+          confidenceLevel: 'high' as const,
+          trendLifecycle: 'peaking' as const,
+        },
+      ],
+    });
+    generateDeepDive.mockResolvedValueOnce({
+      originationDate: '2026-05-11',
+      relevance: 'High relevance to current market shifts.',
+      expandedContext: '[KNOWN] Expanded context detail',
+      strategicImplications: ['[KNOWN] Strategic implication detail'],
+      realWorldExamples: [
+        '[KNOWN] Audience engagement around this behavior keeps accelerating.',
+        '[INFERRED] Purchase intent increased after a social sharing spike.',
+      ],
+      sources: [
+        { title: 'Reuters Example One', url: 'https://www.reuters.com/example-one' },
+        { title: 'Reuters Example Two', url: 'https://www.reuters.com/example-two' },
+      ],
+    });
+
+    render(<CulturalArchaeologist />);
+
+    const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
+    fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
+
+    const deepDiveButton = await screen.findByTitle('Generate Deep Dive');
+    fireEvent.click(deepDiveButton);
+
+    await screen.findByText('Real World Examples');
+    expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-0')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('deep-dive-real-world-source-link-desktop-1')).not.toBeInTheDocument();
   });
 
   it('attaches ask-answer evidence chips to the specific sentence they belong to', async () => {
