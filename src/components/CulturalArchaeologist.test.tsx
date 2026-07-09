@@ -1100,7 +1100,7 @@ describe('CulturalArchaeologist', () => {
       'Relevance: High relevance for purchase intent framing.',
       'Originated: 2026-06-02',
       'Strategic Implication 1: Prioritize confidence-building social proof at launch.',
-      'Real-World Example 1: Competing title bundles creator clips with demo missions.',
+      'Real-World Example 1: Competing title bundles creator clips with demo missions. | Source: Example Source - https://example.com/',
     ]));
 
     fireEvent.click(screen.getByRole('button', { name: /pptx/i }));
@@ -1116,7 +1116,7 @@ describe('CulturalArchaeologist', () => {
       'Relevance: High relevance for purchase intent framing.',
       'Originated: 2026-06-02',
       'Strategic Implication 1: Prioritize confidence-building social proof at launch.',
-      'Real-World Example 1: Competing title bundles creator clips with demo missions.',
+      'Real-World Example 1: Competing title bundles creator clips with demo missions. | Source: Example Source - https://example.com/',
     ]));
   });
 
@@ -1845,6 +1845,52 @@ describe('CulturalArchaeologist', () => {
     expect(within(strategicSection as HTMLElement).getAllByText(/^known$/i).length).toBeGreaterThan(0);
     expect(within(strategicSection as HTMLElement).getAllByText(/^inferred$/i).length).toBeGreaterThan(0);
     expect(within(strategicSection as HTMLElement).getAllByText(/^speculative$/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows an active source link beside each deep-dive real world example', async () => {
+    generateCulturalMatrix.mockResolvedValueOnce({
+      ...mockMatrix,
+      moments: [
+        {
+          text: 'First signal',
+          isHighlyUnique: false,
+          sourceType: 'Mainstream',
+          confidenceLevel: 'high' as const,
+          trendLifecycle: 'peaking' as const,
+        },
+      ],
+    });
+    generateDeepDive.mockResolvedValueOnce({
+      originationDate: '2026-05-11',
+      relevance: 'High relevance to current market shifts.',
+      expandedContext: '[KNOWN] Expanded context detail',
+      strategicImplications: ['[KNOWN] Strategic implication detail'],
+      realWorldExamples: [
+        '[KNOWN] Example detail one',
+        '[INFERRED] Example detail two',
+      ],
+      sources: [
+        { title: 'Reuters Example One', url: 'https://www.reuters.com/example-one' },
+        { title: 'Reuters Example Two', url: 'https://www.reuters.com/example-two' },
+      ],
+    });
+
+    render(<CulturalArchaeologist />);
+
+    const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
+    fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
+
+    const deepDiveButton = await screen.findByTitle('Generate Deep Dive');
+    fireEvent.click(deepDiveButton);
+
+    const exampleOneSourceLink = await screen.findByTestId('deep-dive-real-world-source-link-desktop-0');
+    const exampleTwoSourceLink = await screen.findByTestId('deep-dive-real-world-source-link-desktop-1');
+
+    expect(exampleOneSourceLink).toHaveAttribute('href', expect.stringContaining('https://www.reuters.com/example-one'));
+    expect(exampleTwoSourceLink).toHaveAttribute('href', expect.stringContaining('https://www.reuters.com/example-two'));
+    expect(exampleOneSourceLink).toHaveTextContent('Reuters Example One');
+    expect(exampleTwoSourceLink).toHaveTextContent('Reuters Example Two');
   });
 
   it('attaches ask-answer evidence chips to the specific sentence they belong to', async () => {

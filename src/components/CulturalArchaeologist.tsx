@@ -17,7 +17,7 @@ import { ProgressiveLoader } from './ProgressiveLoader';
 import { Accordion } from './Accordion';
 import { FeedbackChatWidget } from './FeedbackChatWidget';
 import { navigateToHashRoute, navigateToHomeDashboard } from '../services/navigation';
-import { toSafeExternalHref } from '../services/external-links';
+import { normalizeExternalHttpUrl, toSafeExternalHref } from '../services/external-links';
 import { clearCulturalPrefill, readCulturalPrefill, saveCulturalPrefill } from '../services/cultural-prefill';
 import {
   BRAND_SUGGESTION_DEBOUNCE_MS,
@@ -475,6 +475,65 @@ const extractEvidenceTags = (value: string): { cleanText: string; labels: Eviden
     .trim();
 
   return { cleanText, labels };
+};
+
+type RealWorldExampleSourceLink = {
+  title: string;
+  url: string;
+};
+
+const REAL_WORLD_EXAMPLE_URL_PATTERN = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi;
+
+const deriveSourceTitleFromUrl = (url: string): string => {
+  try {
+    const hostname = new URL(url).hostname.replace(/^www\./i, '');
+    return hostname || 'Source link';
+  } catch {
+    return 'Source link';
+  }
+};
+
+const resolveRealWorldExampleSourceLink = (
+  exampleText: string,
+  exampleIndex: number,
+  sources: DeepDiveReport['sources'] | undefined
+): RealWorldExampleSourceLink | null => {
+  const normalizedSources = (sources || [])
+    .map((source) => {
+      const normalizedUrl = normalizeExternalHttpUrl(source?.url || undefined);
+      if (!normalizedUrl) return null;
+      return {
+        title: (source?.title || '').trim() || deriveSourceTitleFromUrl(normalizedUrl),
+        url: normalizedUrl,
+      };
+    })
+    .filter((source): source is RealWorldExampleSourceLink => Boolean(source));
+
+  const sourcesByUrl = new Map(
+    normalizedSources.map((source) => [source.url.toLowerCase(), source] as const)
+  );
+
+  const inlineUrlMatches = exampleText.match(REAL_WORLD_EXAMPLE_URL_PATTERN) || [];
+  for (const inlineUrl of inlineUrlMatches) {
+    const normalizedInlineUrl = normalizeExternalHttpUrl(inlineUrl);
+    if (!normalizedInlineUrl) continue;
+
+    const matchedSource = sourcesByUrl.get(normalizedInlineUrl.toLowerCase());
+    if (matchedSource) {
+      return matchedSource;
+    }
+
+    return {
+      title: deriveSourceTitleFromUrl(normalizedInlineUrl),
+      url: normalizedInlineUrl,
+    };
+  }
+
+  if (!normalizedSources.length) {
+    return null;
+  }
+
+  return normalizedSources[exampleIndex % normalizedSources.length];
 };
 
 type AskAnswerSection = {
@@ -3704,7 +3763,15 @@ export default function CulturalArchaeologist() {
           // Real World Examples
           ddSlide.addText("Real World Examples", { x: 0.5, y: currentY, w: 9, h: 0.3, fontSize: 12, color: "52525B", bold: true });
           currentY += 0.3;
-          const examplesText = d.deepDive.realWorldExamples.map(ex => `• ${ex}`).join('\n');
+          const examplesText = d.deepDive.realWorldExamples
+            .map((example, exampleIndex) => {
+              const sourceLink = resolveRealWorldExampleSourceLink(example, exampleIndex, d.deepDive?.sources);
+              if (!sourceLink) {
+                return `• ${example}`;
+              }
+              return `• ${example}\n  Source: ${sourceLink.title} - ${sourceLink.url}`;
+            })
+            .join('\n');
           ddSlide.addText(examplesText, { x: 0.5, y: currentY, w: 9, h: 0.6, fontSize: 11, color: "3F3F46" });
         }
       });
@@ -3772,9 +3839,13 @@ export default function CulturalArchaeologist() {
           ...(deepDive.strategicImplications || []).map((implication, implicationIndex) =>
             `Strategic Implication ${implicationIndex + 1}: ${implication}`
           ),
-          ...(deepDive.realWorldExamples || []).map((example, exampleIndex) =>
-            `Real-World Example ${exampleIndex + 1}: ${example}`
-          ),
+          ...(deepDive.realWorldExamples || []).map((example, exampleIndex) => {
+            const sourceLink = resolveRealWorldExampleSourceLink(example, exampleIndex, deepDive.sources);
+            if (!sourceLink) {
+              return `Real-World Example ${exampleIndex + 1}: ${example}`;
+            }
+            return `Real-World Example ${exampleIndex + 1}: ${example} | Source: ${sourceLink.title} - ${sourceLink.url}`;
+          }),
         ].filter(Boolean);
 
         if (deepDiveLines.length === 0) {
@@ -4572,16 +4643,31 @@ export default function CulturalArchaeologist() {
                               <ul className="space-y-3">
                                 {deepDiveResult.realWorldExamples.map((ex, i) => {
                                   const parsedExample = extractEvidenceTags(ex);
+                                  const exampleSourceLink = resolveRealWorldExampleSourceLink(parsedExample.cleanText, i, deepDiveResult.sources);
                                   return (
                                   <li key={i} className="text-zinc-700 text-sm">
-                                    <span>
-                                      {parsedExample.cleanText}
-                                      {parsedExample.labels.map((label) => (
-                                        <span key={`real-world-${i}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
-                                          {label}
-                                        </span>
-                                      ))}
-                                    </span>
+                                    <div className="flex flex-col gap-2">
+                                      <span>
+                                        {parsedExample.cleanText}
+                                        {parsedExample.labels.map((label) => (
+                                          <span key={`real-world-${i}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
+                                            {label}
+                                          </span>
+                                        ))}
+                                      </span>
+                                      {exampleSourceLink && (
+                                        <a
+                                          data-testid={`deep-dive-real-world-source-link-mobile-${i}`}
+                                          href={toSafeExternalHref(exampleSourceLink.url)}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex w-fit items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          <span>{exampleSourceLink.title}</span>
+                                        </a>
+                                      )}
+                                    </div>
                                   </li>
                                   );
                                 })}
@@ -4672,16 +4758,31 @@ export default function CulturalArchaeologist() {
                         <ul className="space-y-3">
                           {deepDiveResult.realWorldExamples.map((ex, i) => {
                             const parsedExample = extractEvidenceTags(ex);
+                            const exampleSourceLink = resolveRealWorldExampleSourceLink(parsedExample.cleanText, i, deepDiveResult.sources);
                             return (
                               <li key={i} className="text-zinc-700 text-sm">
-                                <span>
-                                  {parsedExample.cleanText}
-                                  {parsedExample.labels.map((label) => (
-                                    <span key={`real-world-desktop-${i}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
-                                      {label}
-                                    </span>
-                                  ))}
-                                </span>
+                                <div className="flex flex-col gap-2">
+                                  <span>
+                                    {parsedExample.cleanText}
+                                    {parsedExample.labels.map((label) => (
+                                      <span key={`real-world-desktop-${i}-${label}`} className={`inline-block ml-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider font-semibold rounded align-middle ${evidenceLabelChipClass(label)}`}>
+                                        {label}
+                                      </span>
+                                    ))}
+                                  </span>
+                                  {exampleSourceLink && (
+                                    <a
+                                      data-testid={`deep-dive-real-world-source-link-desktop-${i}`}
+                                      href={toSafeExternalHref(exampleSourceLink.url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex w-fit items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                      <span>{exampleSourceLink.title}</span>
+                                    </a>
+                                  )}
+                                </div>
                               </li>
                             );
                           })}
