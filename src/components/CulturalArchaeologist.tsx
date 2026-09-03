@@ -6294,9 +6294,52 @@ export default function CulturalArchaeologist() {
                     </div>
                   )}
 
+                  <div className="md:hidden">
+                    <Accordion
+                      items={MATRIX_INSIGHT_KEYS.map((key) => {
+                        const title = key.charAt(0).toUpperCase() + key.slice(1);
+                        const itemsForKey = (displayMatrix && displayMatrix[key]) || [];
+                        return {
+                          id: key,
+                          title,
+                          content: (
+                            <div className="space-y-4">
+                              <MatrixCard
+                                title={title}
+                                sectionKey={key}
+                                sectionAnchorId={`cultural-result-section-${key}`}
+                                subtext={(() => {
+                                  switch (key) {
+                                    case 'moments': return 'External forces shaping their behavior';
+                                    case 'beliefs': return 'Values they’re operating from';
+                                    case 'behaviors': return 'How they act/interact';
+                                    case 'contradictions': return 'Emerging tensions or shift in values or behavior';
+                                    case 'tone': return 'What & how they feel';
+                                    case 'language': return 'How they communicate';
+                                    case 'community': return 'Who people look to for identity & belonging';
+                                    case 'influencers': return 'People who are shaping their beliefs & behavior';
+                                    default: return '';
+                                  }
+                                })()}
+                                items={itemsForKey}
+                                delay={0}
+                                highlightedInsights={highlightedInsights}
+                                onDeepDive={handleDeepDive}
+                                showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)}
+                                showRefresh={itemsForKey.length === 0 || itemsForKey.every((item: any) => isMatrixItemMissing(item))}
+                                isRefreshing={isLoading}
+                                onRefresh={() => { void handleRefreshCulturalSection(key, title); }}
+                              />
+                            </div>
+                          ),
+                        } as any;
+                      })}
+                    />
+                  </div>
+
                   <div
                     data-testid="matrix-cards-layout"
-                    className="grid grid-cols-1 gap-6 justify-center sm:grid-cols-[repeat(auto-fit,minmax(19rem,19rem))]"
+                    className="hidden md:grid grid-cols-1 gap-6 justify-center sm:grid-cols-[repeat(auto-fit,minmax(19rem,19rem))]"
                   >
                     <MatrixCard title="Moments" sectionKey="moments" sectionAnchorId="cultural-result-section-moments" subtext="External forces shaping their behavior" items={displayMatrix?.moments || []} delay={0.1} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} showRefresh={(displayMatrix?.moments || []).length === 0 || (displayMatrix?.moments || []).every((item) => isMatrixItemMissing(item))} isRefreshing={isLoading} onRefresh={() => { void handleRefreshCulturalSection('moments', 'Moments'); }} />
                     <MatrixCard title="Beliefs" sectionKey="beliefs" sectionAnchorId="cultural-result-section-beliefs" subtext="Values they’re operating from" items={displayMatrix?.beliefs || []} delay={0.2} highlightedInsights={highlightedInsights} onDeepDive={handleDeepDive} showDocumentInsights={Boolean(matrixMeta?.hasUploadedDocuments)} showRefresh={(displayMatrix?.beliefs || []).length === 0 || (displayMatrix?.beliefs || []).every((item) => isMatrixItemMissing(item))} isRefreshing={isLoading} onRefresh={() => { void handleRefreshCulturalSection('beliefs', 'Beliefs'); }} />
