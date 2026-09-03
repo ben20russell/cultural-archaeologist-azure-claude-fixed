@@ -3101,7 +3101,7 @@ export function VisualDesignPage({ onBack }: VisualDesignPageProps) {
       <p className={`subheader-copy text-xs text-zinc-400 text-center mt-8 select-none ${isSearchControlsMinimized ? 'hidden' : ''}`}>
         AI models can make mistakes. Always double check your work. Remember to think critically.
         <br />
-        Powered by OpenAI's GPT-5.4.
+        Powered by OpenAI's GPT-5.6-Sol.
       </p>
       <RecentResultsLibrary<DesignExcavatorRecentResult>
         mode={APP_RECENT_RESULTS_MODES.DESIGN_EXCAVATOR}

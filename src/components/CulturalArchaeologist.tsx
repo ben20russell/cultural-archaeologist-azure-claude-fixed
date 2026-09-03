@@ -158,6 +158,7 @@ const MATRIX_INSIGHT_KEYS: MatrixInsightKey[] = [
 
 const CONFIDENCE_FILTERS: ConfidenceLevelFilter[] = ['high', 'medium', 'low'];
 const EVIDENCE_FILTERS: EvidenceLabelFilter[] = ['known', 'inferred', 'speculative'];
+const MAX_RESULT_ITEMS_PER_CATEGORY = 10;
 const CULTURAL_ARCHAEOLOGIST_TABLE = 'Cultural_Archaeologist';
 const CULTURAL_ARCHAEOLOGIST_TABLE_CANDIDATES = [CULTURAL_ARCHAEOLOGIST_TABLE, 'CulturalArchaeologist', 'searches'] as const;
 const TREND_STAGE_FILTERS: TrendStageFilter[] = ['peaking', 'emerging', 'declining'];
@@ -357,6 +358,27 @@ const matchesMatrixItemFilters = (item: MatrixItem, filters?: CulturalRerunFilte
   }
 
   return true;
+};
+
+const capMatrixCategoryItems = (items: MatrixItem[] = [], uniqueOnly = false): MatrixItem[] => {
+  const prioritized = [...items].sort((left, right) => {
+    if (left.isHighlyUnique !== right.isHighlyUnique) {
+      return left.isHighlyUnique ? -1 : 1;
+    }
+    return (right.confidenceLevel === 'high' ? 1 : 0) - (left.confidenceLevel === 'high' ? 1 : 0);
+  });
+
+  if (!uniqueOnly) {
+    return prioritized.slice(0, MAX_RESULT_ITEMS_PER_CATEGORY);
+  }
+
+  const uniqueItems = prioritized.filter((item) => item.isHighlyUnique);
+  if (uniqueItems.length >= MAX_RESULT_ITEMS_PER_CATEGORY) {
+    return uniqueItems.slice(0, MAX_RESULT_ITEMS_PER_CATEGORY);
+  }
+
+  const supplemental = prioritized.filter((item) => !item.isHighlyUnique);
+  return [...uniqueItems, ...supplemental].slice(0, MAX_RESULT_ITEMS_PER_CATEGORY);
 };
 
 const mergeRerunMatrixIntoExisting = (
@@ -1446,7 +1468,7 @@ export default function CulturalArchaeologist() {
 
     const nextMatrix: CulturalMatrix = { ...matrix };
     MATRIX_INSIGHT_KEYS.forEach((key) => {
-      nextMatrix[key] = (matrix[key] || []).filter((item) => {
+      const filteredItems = (matrix[key] || []).filter((item) => {
         if (!matchesMatrixItemFilters(item, activeRerunFilters)) {
           return false;
         }
@@ -1455,6 +1477,8 @@ export default function CulturalArchaeologist() {
         }
         return true;
       });
+
+      nextMatrix[key] = capMatrixCategoryItems(filteredItems, showHighlyUniqueOnly);
     });
 
     return nextMatrix;
@@ -5614,7 +5638,7 @@ export default function CulturalArchaeologist() {
             <p className="subheader-copy text-xs text-zinc-400 text-center mt-8">
               AI models can make mistakes. Always double check your work. Remember to think critically.
               <br />
-              Powered by OpenAI's GPT-5.4.
+              Powered by OpenAI's GPT-5.6-Sol.
             </p>
             <RecentResultsLibrary<CulturalRecentResult>
               mode={APP_RECENT_RESULTS_MODES.CULTURAL_ARCHAEOLOGIST}
@@ -6051,7 +6075,29 @@ export default function CulturalArchaeologist() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2 group/tip relative">
+                      <div className="text-[11px] uppercase tracking-wider text-zinc-500">Unique Observations</div>
+                    </div>
+                    <button
+                      type="button"
+                      data-testid="results-filter-unique-observations"
+                      aria-pressed={showHighlyUniqueOnly}
+                      onClick={() => {
+                        const nextValue = !showHighlyUniqueOnly;
+                        setShowHighlyUniqueOnly(nextValue);
+                      }}
+                      className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                        showHighlyUniqueOnly
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300'
+                      }`}
+                    >
+                      Unique Observations
+                    </button>
+                  </div>
+
                   <div>
                     <div className="flex items-center gap-1.5 mb-2 group/tip relative">
                       <div className="text-[11px] uppercase tracking-wider text-zinc-500">Confidence Level</div>
@@ -6518,7 +6564,7 @@ function MatrixCard({
   onRefresh?: () => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const INITIAL_SHOW = 3;
+  const INITIAL_SHOW = MAX_RESULT_ITEMS_PER_CATEGORY;
   const cardTestId = `matrix-card-${title.toLowerCase().replace(/\s+/g, '-')}`;
 
   const confidenceChipClass = (confidence?: string) => {

@@ -1167,6 +1167,9 @@ describe('BrandNavigator', () => {
   });
 
   it('renders recent news headlines as external article links, ordered most recent first, with dates', async () => {
+    const newerPublishedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const olderPublishedAt = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
+
     generateBrandResearchMatrix.mockResolvedValue({
       analysisObjective: 'test objective',
       ecosystemMethod: 'test method',
@@ -1192,12 +1195,12 @@ describe('BrandNavigator', () => {
             {
               headline: 'Older sustainability update',
               url: 'https://www.reuters.com/world/us/older-sustainability-update/',
-              publishedAt: '2026-01-12T10:00:00.000Z',
+              publishedAt: olderPublishedAt,
             },
             {
               headline: 'Patagonia launches repair initiative',
               url: 'https://www.reuters.com/world/us/patagonia-launches-repair-initiative/',
-              publishedAt: '2026-02-14T09:00:00.000Z',
+              publishedAt: newerPublishedAt,
             },
           ],
           sources: [],
@@ -1215,17 +1218,23 @@ describe('BrandNavigator', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /generate analysis/i }));
 
-    const firstHeadlineLink = await screen.findByRole('link', { name: /patagonia launches repair initiative/i });
-    expect(firstHeadlineLink).toHaveAttribute('href', 'https://www.reuters.com/world/us/patagonia-launches-repair-initiative/');
-    expect(firstHeadlineLink).toHaveTextContent('(2/14/2026)');
+    const recentNewsLinks = await waitFor(() => {
+      const links = screen.getAllByRole('link').filter((link) => {
+        const href = link.getAttribute('href');
+        return href === 'https://www.reuters.com/world/us/patagonia-launches-repair-initiative/'
+          || href === 'https://www.reuters.com/world/us/older-sustainability-update/';
+      });
+      expect(links).toHaveLength(2);
+      return links;
+    });
 
-    const secondHeadlineLink = await screen.findByRole('link', { name: /older sustainability update/i });
-    expect(secondHeadlineLink).toHaveAttribute('href', 'https://www.reuters.com/world/us/older-sustainability-update/');
-    expect(secondHeadlineLink).toHaveTextContent('(1/12/2026)');
+    expect(recentNewsLinks[0]).toHaveAttribute('href', 'https://www.reuters.com/world/us/patagonia-launches-repair-initiative/');
+    expect(recentNewsLinks[0]).toHaveTextContent(/Patagonia launches repair initiative/i);
+    expect(recentNewsLinks[0]).toHaveTextContent(`(${new Date(newerPublishedAt).toLocaleDateString()})`);
 
-    const orderedLinks = screen.getAllByTestId(/news-link-0-/);
-    expect(orderedLinks[0]).toHaveTextContent('Patagonia launches repair initiative');
-    expect(orderedLinks[1]).toHaveTextContent('Older sustainability update');
+    expect(recentNewsLinks[1]).toHaveAttribute('href', 'https://www.reuters.com/world/us/older-sustainability-update/');
+    expect(recentNewsLinks[1]).toHaveTextContent(/Older sustainability update/i);
+    expect(recentNewsLinks[1]).toHaveTextContent(`(${new Date(olderPublishedAt).toLocaleDateString()})`);
   });
 
   it('supports show-all-items behavior for long brand result lists', async () => {

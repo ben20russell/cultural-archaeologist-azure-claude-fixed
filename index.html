@@ -20,12 +20,20 @@
     <meta name="twitter:title" content="Brand Atlas" />
     <meta name="twitter:description" content="Decode audiences, culture, and brand identity in minutes." />
     <meta name="twitter:image" content="/social-preview.png" />
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-B9EV3GQR1J"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-B9EV3GQR1J');
+      const hostname = window.location && window.location.hostname ? window.location.hostname.toLowerCase() : '';
+      const isLocalDevHost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || /^192\.168\./.test(hostname) || /^10\./.test(hostname) || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+      if (!isLocalDevHost) {
+        const gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=G-B9EV3GQR1J';
+        document.head.appendChild(gaScript);
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        window.gtag = gtag;
+        gtag('js', new Date());
+        gtag('config', 'G-B9EV3GQR1J');
+      }
     </script>
     <title>Brand Atlas</title>
   </head>

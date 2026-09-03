@@ -940,6 +940,35 @@ describe('CulturalArchaeologist', () => {
     expect(await screen.findByText('General signal')).toBeInTheDocument();
   });
 
+  it('shows up to 10 insights per section and exposes the unique observations filter', async () => {
+    generateCulturalMatrix.mockResolvedValueOnce({
+      ...mockMatrix,
+      moments: Array.from({ length: 12 }, (_, index) => ({
+        text: `[KNOWN] Signal ${index + 1}`,
+        isHighlyUnique: index < 9,
+        sourceType: 'Mainstream',
+        confidenceLevel: 'high' as const,
+        trendLifecycle: 'peaking' as const,
+      })),
+    });
+
+    render(<CulturalArchaeologist />);
+
+    const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
+    fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
+
+    expect(await screen.findByText('Signal 1')).toBeInTheDocument();
+    expect(screen.getAllByText(/Signal \d+/).length).toBe(10);
+    expect(screen.queryByText('Signal 11')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /unique observations/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Signal \d+/).length).toBeLessThanOrEqual(10);
+    });
+  });
+
   it('shows per-section refresh for incomplete results and reruns a fresh search when clicked', async () => {
     generateCulturalMatrix
       .mockResolvedValueOnce(incompleteMatrix)
@@ -1744,30 +1773,20 @@ describe('CulturalArchaeologist', () => {
     expect(screen.getByDisplayValue('Sneakers')).toBeInTheDocument();
   });
 
-  it('uses the same show-all button text/icon size and color as Brand Navigator', async () => {
-    generateCulturalMatrix.mockResolvedValueOnce({
-      ...mockMatrix,
-      moments: [
-        { text: '[KNOWN] First signal', isHighlyUnique: false, sourceType: 'Mainstream', confidenceLevel: 'high' as const, trendLifecycle: 'peaking' as const },
-        { text: '[KNOWN] Second signal', isHighlyUnique: false, sourceType: 'Mainstream', confidenceLevel: 'high' as const, trendLifecycle: 'peaking' as const },
-        { text: '[KNOWN] Third signal', isHighlyUnique: false, sourceType: 'Mainstream', confidenceLevel: 'high' as const, trendLifecycle: 'peaking' as const },
-        { text: '[KNOWN] Fourth signal', isHighlyUnique: false, sourceType: 'Mainstream', confidenceLevel: 'high' as const, trendLifecycle: 'peaking' as const },
-        { text: '[KNOWN] Fifth signal', isHighlyUnique: false, sourceType: 'Mainstream', confidenceLevel: 'high' as const, trendLifecycle: 'peaking' as const },
-      ],
-    });
-
+  it('renders the unique observations filter with the requested label and active styling', async () => {
     render(<CulturalArchaeologist />);
 
     const audienceInput = await screen.findByPlaceholderText('Primary Audience (Required) *');
     fireEvent.change(audienceInput, { target: { value: 'Gen Z sneaker culture' } });
     fireEvent.click(screen.getByRole('button', { name: /generate insights/i }));
 
-    await screen.findByText('First signal', {}, { timeout: 3000 });
-    const showAllBtn = await screen.findByRole('button', { name: /show all 5 items/i }, { timeout: 3000 });
-    expect(showAllBtn.className).toContain('text-sm');
-    expect(showAllBtn.className).toContain('text-indigo-600');
-    const showAllChevron = showAllBtn.querySelector('svg');
-    expect(showAllChevron?.className.baseVal ?? '').toContain('w-4 h-4');
+    const uniqueToggle = await screen.findByRole('button', { name: /unique observations/i });
+    expect(uniqueToggle.className).toContain('text-[11px]');
+    expect(uniqueToggle.className).toContain('uppercase');
+
+    fireEvent.click(uniqueToggle);
+    expect(uniqueToggle.getAttribute('aria-pressed')).toBe('true');
+    expect(uniqueToggle.className).toContain('bg-indigo-600');
   });
 
   it('keeps demographics visible when result filters narrow or remove visible insights', async () => {
